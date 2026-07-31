@@ -1,0 +1,12 @@
+services:
+  nebenkosten-app:
+    build: .
+    container_name: nebenkosten-app
+    restart: unless-stopped
+    ports:
+      - "8420:8000"
+    volumes:
+      # Liegt auf dem NAS-Speicher -> von allen Macs im Netz ueber die
+      # Web-Oberflaeche erreichbar, ohne dass mehrere Prozesse direkt auf
+      # die gleiche SQLite-Datei zugreifen (nur der Container tut das).
+      - ./data:/data

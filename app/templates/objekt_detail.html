@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}{{ objekt.bezeichnung }}{% endblock %}
+{% block content %}
+<p><a href="/objekte">&larr; alle Objekte</a></p>
+<h1>{{ objekt.bezeichnung }}</h1>
+<p class="muted">
+  {{ objekt.strasse }}, {{ objekt.plz }} {{ objekt.ort }} ·
+  Flurstück {{ objekt.flurstueck or "-" }} ·
+  {{ objekt.wohnflaeche_qm or "-" }} m² ·
+  MEA {{ objekt.miteigentumsanteil or "-" }} ·
+  Hausgeld {{ objekt.hausgeld_monatlich or "-" }} €/Monat ·
+  Verwaltung: {% if objekt.verwaltung %}<a href="/verwaltungen/{{ objekt.verwaltung.id }}">{{ objekt.verwaltung.name }}</a>{% else %}selbstverwaltet{% endif %}
+</p>
+
+<h2>Stammdaten bearbeiten</h2>
+<form class="card" method="post" action="/objekte/{{ objekt.id }}/bearbeiten">
+  <label>Bezeichnung</label>
+  <input name="bezeichnung" value="{{ objekt.bezeichnung }}" required>
+  <div class="grid-2">
+    <div><label>Straße</label><input name="strasse" value="{{ objekt.strasse or '' }}"></div>
+    <div><label>PLZ / Ort</label>
+      <div style="display:flex; gap:0.5rem;">
+        <input name="plz" value="{{ objekt.plz or '' }}" style="max-width:100px">
+        <input name="ort" value="{{ objekt.ort or '' }}">
+      </div>
+    </div>
+  </div>
+  <div class="grid-2">
+    <div><label>Flurstück</label><input name="flurstueck" value="{{ objekt.flurstueck or '' }}"></div>
+    <div><label>Miteigentumsanteil</label><input name="miteigentumsanteil" value="{{ objekt.miteigentumsanteil or '' }}"></div>
+  </div>
+  <div class="grid-2">
+    <div><label>Wohnfläche (m²)</label><input name="wohnflaeche_qm" type="number" step="0.01" value="{{ objekt.wohnflaeche_qm or '' }}"></div>
+    <div><label>Hausgeld (€/Monat)</label><input name="hausgeld_monatlich" type="number" step="0.01" value="{{ objekt.hausgeld_monatlich or '' }}"></div>
+  </div>
+  <label>Verwaltung</label>
+  <select name="verwaltung_id">
+    <option value="">– selbstverwaltet (Schritt 2) –</option>
+    {% for v in verwaltungen %}
+    <option value="{{ v.id }}" {% if objekt.verwaltung_id == v.id %}selected{% endif %}>{{ v.name }}</option>
+    {% endfor %}
+  </select>
+  <label>Notizen</label>
+  <textarea name="notizen" rows="2">{{ objekt.notizen or '' }}</textarea>
+  <button type="submit">Speichern</button>
+</form>
+
+<h2>Mietverhältnisse</h2>
+<table>
+  <tr><th>Mieter</th><th>Einzug</th><th>Auszug</th><th>Kontakt</th><th></th></tr>
+  {% for mv in objekt.mietverhaeltnisse|sort(attribute="einzug") %}
+  <tr>
+    <td>{{ mv.mietername }}</td>
+    <td>{{ mv.einzug }}</td>
+    <td>{{ mv.auszug or "aktuell" }}</td>
+    <td>{{ mv.kontakt }}</td>
+    <td>
+      <form class="inline" method="post" action="/mietverhaeltnisse/{{ mv.id }}/loeschen"
+            onsubmit="return confirm('Mietverhältnis wirklich löschen?');">
+        <button type="submit" class="danger">Löschen</button>
+      </form>
+    </td>
+  </tr>
+  {% else %}
+  <tr><td colspan="5" class="muted">Noch keine Mietverhältnisse.</td></tr>
+  {% endfor %}
+</table>
+
+<form class="card" method="post" action="/objekte/{{ objekt.id }}/mietverhaeltnisse/neu">
+  <label>Mieter (Name)</label>
+  <input name="mietername" required>
+  <div class="grid-2">
+    <div><label>Einzug</label><input name="einzug" type="date" required></div>
+    <div><label>Auszug (leer = aktuell)</label><input name="auszug" type="date"></div>
+  </div>
+  <label>Kontakt</label>
+  <input name="kontakt">
+  <label>Notizen</label>
+  <textarea name="notizen" rows="2"></textarea>
+  <button type="submit">Mietverhältnis hinzufügen</button>
+</form>
+
+<h2>Jahresabrechnungen</h2>
+<table>
+  <tr><th>Jahr</th><th>Zeitraum</th><th>Status</th><th></th></tr>
+  {% for ja in objekt.jahresabrechnungen|sort(attribute="jahr") %}
+  <tr>
+    <td>{{ ja.jahr }}</td>
+    <td>{{ ja.zeitraum_von }} – {{ ja.zeitraum_bis }}</td>
+    <td>
+      {% if ja.status == "berechnet" %}<span class="badge ok">berechnet</span>
+      {% else %}<span class="badge">erfasst</span>{% endif %}
+    </td>
+    <td><a class="btn" href="/jahresabrechnungen/{{ ja.id }}">Öffnen</a></td>
+  </tr>
+  {% else %}
+  <tr><td colspan="4" class="muted">Noch keine Jahresabrechnung.</td></tr>
+  {% endfor %}
+</table>
+
+<form class="card" method="post" action="/objekte/{{ objekt.id }}/jahresabrechnungen/neu">
+  <label>Jahr</label>
+  <input name="jahr" type="number" required placeholder="z.B. 2025">
+  <div class="grid-2">
+    <div><label>Zeitraum von (leer = 1.1.)</label><input name="zeitraum_von" type="date"></div>
+    <div><label>Zeitraum bis (leer = 31.12.)</label><input name="zeitraum_bis" type="date"></div>
+  </div>
+  <label>Von Verwaltung erhalten am</label>
+  <input name="erhalten_am" type="date">
+  <button type="submit">Jahresabrechnung anlegen</button>
+</form>
+{% endblock %}

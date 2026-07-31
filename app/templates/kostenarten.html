@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Kostenarten{% endblock %}
+{% block content %}
+<h1>Kostenarten</h1>
+<p class="muted">Zentrale Liste der Kostenarten mit Standard-Umlagefähigkeit und Verteilmethode.
+Gradtagszahl/Zwischenablesung-Logik für Heizung/Wasser folgt in Schritt 2 –
+bis dahin werden auch diese Positionen zeitanteilig verteilt.</p>
+
+<table>
+  <tr><th>Bezeichnung</th><th>Umlagefähig</th><th>Verteilmethode</th><th></th></tr>
+  {% for k in kostenarten %}
+  <tr>
+    <td>{{ k.bezeichnung }}</td>
+    <td>{% if k.umlagefaehig %}<span class="badge ok">ja</span>{% else %}<span class="badge">nein</span>{% endif %}</td>
+    <td>{{ k.verteilmethode }}</td>
+    <td>
+      <form class="inline" method="post" action="/kostenarten/{{ k.id }}/loeschen"
+            onsubmit="return confirm('Kostenart wirklich löschen?');">
+        <button type="submit" class="danger">Löschen</button>
+      </form>
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+
+<h2>Neue Kostenart</h2>
+<form class="card" method="post" action="/kostenarten/neu">
+  <label>Bezeichnung</label>
+  <input name="bezeichnung" required>
+  <label><input type="checkbox" name="umlagefaehig" value="1" checked style="width:auto;display:inline"> umlagefähig</label>
+  <label>Verteilmethode</label>
+  <select name="verteilmethode">
+    <option value="zeitanteilig">zeitanteilig (Tage)</option>
+    <option value="gradtagszahl">Gradtagszahl (Heizung, Schritt 2)</option>
+    <option value="zwischenablesung_wasser">Zwischenablesung (Wasser, Schritt 2)</option>
+    <option value="manuell">manuell / nicht auf Mieter umgelegt</option>
+  </select>
+  <label>Notizen</label>
+  <textarea name="notizen" rows="2"></textarea>
+  <button type="submit">Anlegen</button>
+</form>
+{% endblock %}

@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Verwaltungen{% endblock %}
+{% block content %}
+<h1>Hausverwaltungen</h1>
+
+<table>
+  <tr><th>Name</th><th>Ansprechpartner</th><th>Ort</th><th>Telefon</th><th>E-Mail</th><th></th></tr>
+  {% for v in verwaltungen %}
+  <tr>
+    <td><a href="/verwaltungen/{{ v.id }}">{{ v.name }}</a></td>
+    <td>{{ (v.ansprechpartner_anrede ~ " " ~ v.ansprechpartner_name) if v.ansprechpartner_name else "" }}</td>
+    <td>{{ v.plz }} {{ v.ort }}</td>
+    <td>{{ v.telefon }}</td>
+    <td>{{ v.email }}</td>
+    <td><a class="btn" href="/verwaltungen/{{ v.id }}">Öffnen</a></td>
+  </tr>
+  {% else %}
+  <tr><td colspan="6" class="muted">Noch keine Verwaltungen angelegt.</td></tr>
+  {% endfor %}
+</table>
+
+<h2>Neue Verwaltung</h2>
+<form class="card" method="post" action="/verwaltungen/neu">
+  <label>Name</label>
+  <input name="name" required>
+  <div class="grid-2">
+    <div><label>Anrede</label>
+      <select name="ansprechpartner_anrede">
+        <option value="">–</option>
+        <option value="Herr">Herr</option>
+        <option value="Frau">Frau</option>
+        <option value="Divers">Divers</option>
+      </select>
+    </div>
+    <div><label>Name (Ansprechpartner)</label><input name="ansprechpartner_name"></div>
+  </div>
+  <label>Straße</label>
+  <input name="strasse">
+  <div class="grid-2">
+    <div><label>PLZ</label><input name="plz"></div>
+    <div><label>Ort</label><input name="ort"></div>
+  </div>
+  <label>Telefon</label>
+  <input name="telefon">
+  <label>E-Mail</label>
+  <input name="email" type="email">
+  <label>Notizen</label>
+  <textarea name="notizen" rows="2"></textarea>
+  <button type="submit">Anlegen</button>
+</form>
+{% endblock %}

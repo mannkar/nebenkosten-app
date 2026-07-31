@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Objekte verwalten{% endblock %}
+{% block content %}
+<h1>Objekte verwalten</h1>
+
+<table>
+  <tr><th>Bezeichnung</th><th>Adresse</th><th>Flurstück</th><th>Verwaltung</th><th></th></tr>
+  {% for o in objekte %}
+  <tr>
+    <td><a href="/objekte/{{ o.id }}">{{ o.bezeichnung }}</a></td>
+    <td>{{ o.strasse }}, {{ o.plz }} {{ o.ort }}</td>
+    <td>{{ o.flurstueck }}</td>
+    <td>{{ o.verwaltung.name if o.verwaltung else "selbstverwaltet" }}</td>
+    <td>
+      <form class="inline" method="post" action="/objekte/{{ o.id }}/loeschen"
+            onsubmit="return confirm('Objekt inkl. aller Mietverhältnisse und Abrechnungen wirklich löschen?');">
+        <button type="submit" class="danger">Löschen</button>
+      </form>
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+
+<h2>Neues Objekt (Eigentumswohnung)</h2>
+<form class="card" method="post" action="/objekte/neu">
+  <label>Bezeichnung (z.B. "Musterstr. 5, WE 3")</label>
+  <input name="bezeichnung" required>
+  <div class="grid-2">
+    <div><label>Straße</label><input name="strasse"></div>
+    <div><label>PLZ / Ort</label>
+      <div style="display:flex; gap:0.5rem;">
+        <input name="plz" style="max-width:100px">
+        <input name="ort">
+      </div>
+    </div>
+  </div>
+  <div class="grid-2">
+    <div><label>Flurstück</label><input name="flurstueck"></div>
+    <div><label>Miteigentumsanteil</label><input name="miteigentumsanteil" placeholder="z.B. 45,3/1000"></div>
+  </div>
+  <div class="grid-2">
+    <div><label>Wohnfläche (m²)</label><input name="wohnflaeche_qm" type="number" step="0.01"></div>
+    <div><label>Hausgeld (€/Monat)</label><input name="hausgeld_monatlich" type="number" step="0.01"></div>
+  </div>
+  <label>Verwaltung</label>
+  <select name="verwaltung_id">
+    <option value="">– selbstverwaltet (Schritt 2) –</option>
+    {% for v in verwaltungen %}
+    <option value="{{ v.id }}">{{ v.name }}</option>
+    {% endfor %}
+  </select>
+  <label>Notizen</label>
+  <textarea name="notizen" rows="2"></textarea>
+  <button type="submit">Anlegen</button>
+</form>
+{% endblock %}

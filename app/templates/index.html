@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Objekte{% endblock %}
+{% block content %}
+<h1>Objekte</h1>
+<p><a class="btn" href="/objekte">Objekt anlegen / verwalten</a></p>
+
+<table>
+  <tr>
+    <th>Bezeichnung</th><th>Adresse</th><th>Wohnfläche</th><th>Verwaltung</th>
+    <th>Mietverhältnisse</th><th>Jahresabrechnungen</th><th></th>
+  </tr>
+  {% for o in objekte %}
+  <tr>
+    <td>{{ o.bezeichnung }}</td>
+    <td>{{ o.strasse }}, {{ o.plz }} {{ o.ort }}</td>
+    <td>{{ o.wohnflaeche_qm or "-" }} m²</td>
+    <td>{{ o.verwaltung.name if o.verwaltung else "keine (selbstverwaltet)" }}</td>
+    <td>{{ o.mietverhaeltnisse|length }}</td>
+    <td>{{ o.jahresabrechnungen|length }}</td>
+    <td><a class="btn" href="/objekte/{{ o.id }}">Öffnen</a></td>
+  </tr>
+  {% else %}
+  <tr><td colspan="7" class="muted">Noch keine Objekte angelegt.</td></tr>
+  {% endfor %}
+</table>
+
+<h2>CSV-Export</h2>
+<p class="muted">Rohdaten der Kerntabellen exportieren:</p>
+<p>
+  <a class="btn" href="/export/objekt.csv">Objekte</a>
+  <a class="btn" href="/export/mietverhaeltnis.csv">Mietverhältnisse</a>
+  <a class="btn" href="/export/jahresabrechnung.csv">Jahresabrechnungen</a>
+  <a class="btn" href="/export/abrechnungsposition.csv">Abrechnungspositionen</a>
+  <a class="btn" href="/export/mieterabrechnung.csv">Mieterabrechnungen</a>
+</p>
+{% endblock %}

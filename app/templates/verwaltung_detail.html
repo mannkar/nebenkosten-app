@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}{{ v.name }}{% endblock %}
+{% block content %}
+<p><a href="/verwaltungen">&larr; alle Verwaltungen</a></p>
+<h1>{{ v.name }}</h1>
+
+<h2>Stammdaten bearbeiten</h2>
+<form class="card" method="post" action="/verwaltungen/{{ v.id }}/bearbeiten">
+  <label>Name</label>
+  <input name="name" value="{{ v.name }}" required>
+  <div class="grid-2">
+    <div><label>Anrede</label>
+      <select name="ansprechpartner_anrede">
+        <option value="" {% if not v.ansprechpartner_anrede %}selected{% endif %}>–</option>
+        <option value="Herr" {% if v.ansprechpartner_anrede == "Herr" %}selected{% endif %}>Herr</option>
+        <option value="Frau" {% if v.ansprechpartner_anrede == "Frau" %}selected{% endif %}>Frau</option>
+        <option value="Divers" {% if v.ansprechpartner_anrede == "Divers" %}selected{% endif %}>Divers</option>
+      </select>
+    </div>
+    <div><label>Name (Ansprechpartner)</label>
+      <input name="ansprechpartner_name" value="{{ v.ansprechpartner_name or '' }}"></div>
+  </div>
+  <label>Straße</label>
+  <input name="strasse" value="{{ v.strasse or '' }}">
+  <div class="grid-2">
+    <div><label>PLZ</label><input name="plz" value="{{ v.plz or '' }}"></div>
+    <div><label>Ort</label><input name="ort" value="{{ v.ort or '' }}"></div>
+  </div>
+  <label>Telefon</label>
+  <input name="telefon" value="{{ v.telefon or '' }}">
+  <label>E-Mail</label>
+  <input name="email" value="{{ v.email or '' }}" type="email">
+  <label>Notizen</label>
+  <textarea name="notizen" rows="2">{{ v.notizen or '' }}</textarea>
+  <button type="submit">Speichern</button>
+</form>
+
+<h2>Betreute Objekte</h2>
+<table>
+  <tr><th>Objekt</th><th>Adresse</th></tr>
+  {% for o in v.objekte %}
+  <tr>
+    <td><a href="/objekte/{{ o.id }}">{{ o.bezeichnung }}</a></td>
+    <td>{{ o.strasse }}, {{ o.plz }} {{ o.ort }}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="2" class="muted">Keine Objekte zugeordnet.</td></tr>
+  {% endfor %}
+</table>
+
+<h2>Änderungshistorie</h2>
+<table>
+  <tr><th>Datum</th><th>Feld</th><th>Alt</th><th>Neu</th></tr>
+  {% for h in historie %}
+  <tr>
+    <td>{{ h.geaendert_am.strftime("%d.%m.%Y %H:%M") }}</td>
+    <td>{{ h.feld }}</td>
+    <td>{{ h.alter_wert or "–" }}</td>
+    <td>{{ h.neuer_wert or "–" }}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="4" class="muted">Noch keine Änderungen protokolliert.</td></tr>
+  {% endfor %}
+</table>
+
+<form method="post" action="/verwaltungen/{{ v.id }}/loeschen"
+      onsubmit="return confirm('Verwaltung wirklich löschen?');">
+  <button type="submit" class="danger">Verwaltung löschen</button>
+</form>
+{% endblock %}

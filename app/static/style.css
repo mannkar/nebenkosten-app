@@ -1,0 +1,91 @@
+:root {
+  --border: #d8d8d8;
+  --accent: #2f5d50;
+  --bg: #fafaf8;
+  --danger: #b3392c;
+}
+* { box-sizing: border-box; }
+body {
+  font-family: -apple-system, "Helvetica Neue", Arial, sans-serif;
+  background: var(--bg);
+  color: #222;
+  margin: 0;
+}
+nav {
+  background: var(--accent);
+  padding: 0.8rem 1.5rem;
+  display: flex;
+  gap: 1.5rem;
+  justify-content: flex-end;
+}
+nav a {
+  color: #fff;
+  text-decoration: none;
+  font-weight: 600;
+}
+nav a:hover { text-decoration: underline; }
+main {
+  max-width: 980px;
+  margin: 1.5rem auto;
+  padding: 0 1.5rem 3rem;
+}
+h1, h2, h3 { color: #1a1a1a; }
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin-bottom: 1.5rem;
+  background: #fff;
+}
+th, td {
+  border: 1px solid var(--border);
+  padding: 0.45rem 0.6rem;
+  text-align: left;
+  font-size: 0.92rem;
+}
+th { background: #f0efe9; }
+form.inline { display: inline; }
+form.card {
+  background: #fff;
+  border: 1px solid var(--border);
+  padding: 1rem 1.2rem;
+  border-radius: 6px;
+  margin-bottom: 1.5rem;
+  max-width: 640px;
+}
+form.card label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-top: 0.6rem;
+}
+form.card input, form.card select, form.card textarea {
+  width: 100%;
+  padding: 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 0.92rem;
+}
+form.card button, .btn {
+  margin-top: 1rem;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
+  font-size: 0.9rem;
+}
+button.danger, .btn.danger { background: var(--danger); }
+.muted { color: #777; font-size: 0.85rem; }
+.badge {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  border-radius: 10px;
+  font-size: 0.75rem;
+  background: #e4e4de;
+}
+.badge.ok { background: #d3ead2; color: #1f5e1a; }
+.badge.warn { background: #f5e0b8; color: #7a4d00; }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
