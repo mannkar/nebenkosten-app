@@ -11,6 +11,9 @@ Anteil, wenn keine Zwischenablesung moeglich ist) und fuer Wasser
 beachten). Die Tabellen Zaehler/Zaehlerstand sind im Schema bereits
 angelegt, damit Phase 2 ohne Migration ergaenzt werden kann.
 """
+
+from __future__ import annotations
+
 from datetime import date
 from sqlalchemy.orm import Session
 

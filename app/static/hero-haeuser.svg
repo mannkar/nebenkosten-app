@@ -1,0 +1,75 @@
+<svg viewBox="0 0 1200 260" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <filter id="sketchy" x="-20%" y="-20%" width="140%" height="140%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.012 0.03" numOctaves="2" seed="7" result="noise"/>
+      <feDisplacementMap in="SourceGraphic" in2="noise" scale="7" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fdfbf5"/>
+      <stop offset="100%" stop-color="#f3ead9"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="0" y="0" width="1200" height="260" fill="url(#sky)"/>
+
+  <g filter="url(#sketchy)" fill="none" stroke="#2f5d50" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+
+    <!-- Boden -->
+    <path d="M0,230 Q150,224 300,230 T 600,230 T 900,230 T 1200,230" />
+
+    <!-- Buesche -->
+    <path d="M180,230 q-10,-22 10,-26 q6,-14 22,-6 q16,-10 24,4 q16,-2 12,16 q4,14 -14,14 l-50,0 q-14,0 -4,-2 Z" fill="#dcead4"/>
+    <path d="M660,230 q-8,-18 8,-22 q6,-10 18,-4 q12,-8 18,4 q12,0 8,14 q2,10 -12,10 l-40,0 q-10,0 0,-2 Z" fill="#dcead4"/>
+
+    <!-- Haus 1 -->
+    <rect x="40" y="140" width="150" height="90" fill="#fdf6ea"/>
+    <polyline points="28,140 115,70 202,140"/>
+    <rect x="98" y="185" width="34" height="45" fill="#c98a4b"/>
+    <rect x="58" y="160" width="24" height="24" fill="#eaf2ec"/>
+    <path d="M58,172 h24 M70,160 v24"/>
+
+    <!-- Haus 2 -->
+    <rect x="220" y="165" width="110" height="65" fill="#fdf6ea"/>
+    <polyline points="210,165 275,110 340,165"/>
+    <rect x="258" y="200" width="28" height="30" fill="#c98a4b"/>
+    <rect x="234" y="180" width="20" height="20" fill="#eaf2ec"/>
+    <path d="M234,190 h20 M244,180 v20"/>
+
+    <!-- Haus 3 (mit Kamin) -->
+    <rect x="360" y="125" width="170" height="105" fill="#fdf6ea"/>
+    <polyline points="346,125 445,50 544,125"/>
+    <rect x="470" y="65" width="18" height="40" fill="#e8b784"/>
+    <path d="M479,64 q6,-10 -2,-18 q-8,-8 0,-16" stroke="#b9c2bd"/>
+    <rect x="428" y="180" width="36" height="50" fill="#c98a4b"/>
+    <rect x="380" y="150" width="26" height="26" fill="#eaf2ec"/>
+    <path d="M380,163 h26 M393,150 v26"/>
+    <rect x="486" y="150" width="26" height="26" fill="#eaf2ec"/>
+    <path d="M486,163 h26 M499,150 v26"/>
+
+    <!-- Haus 4 -->
+    <rect x="560" y="150" width="130" height="80" fill="#fdf6ea"/>
+    <polyline points="548,150 625,90 702,150"/>
+    <rect x="608" y="192" width="30" height="38" fill="#c98a4b"/>
+    <rect x="572" y="168" width="22" height="22" fill="#eaf2ec"/>
+    <path d="M572,179 h22 M583,168 v22"/>
+
+    <!-- Haus 5 (mit Kamin + Rauch) -->
+    <rect x="720" y="135" width="190" height="95" fill="#fdf6ea"/>
+    <polyline points="706,135 815,65 924,135"/>
+    <rect x="860" y="78" width="18" height="42" fill="#e8b784"/>
+    <path d="M869,76 q10,-12 -2,-20 q-12,-8 0,-18 q10,-10 -2,-18" stroke="#b9c2bd"/>
+    <rect x="798" y="185" width="38" height="45" fill="#c98a4b"/>
+    <rect x="742" y="160" width="24" height="24" fill="#eaf2ec"/>
+    <path d="M742,172 h24 M754,160 v24"/>
+    <rect x="866" y="160" width="24" height="24" fill="#eaf2ec"/>
+    <path d="M866,172 h24 M878,160 v24"/>
+
+    <!-- Haus 6 -->
+    <rect x="940" y="160" width="140" height="70" fill="#fdf6ea"/>
+    <polyline points="928,160 1010,105 1092,160"/>
+    <rect x="994" y="196" width="32" height="34" fill="#c98a4b"/>
+    <rect x="954" y="176" width="22" height="22" fill="#eaf2ec"/>
+    <path d="M954,187 h22 M965,176 v22"/>
+
+  </g>
+</svg>
