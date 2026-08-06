@@ -49,6 +49,14 @@
     <option value="{{ v.id }}">{{ v.name }}</option>
     {% endfor %}
   </select>
+  <label>Beginn des Abrechnungsjahres</label>
+  <select name="abrechnung_start_monat">
+    {% for nr, name in monate %}
+    <option value="{{ nr }}" {% if nr == 1 %}selected{% endif %}>{{ name }}</option>
+    {% endfor %}
+  </select>
+  <p class="muted" style="margin-top:0.2rem;">Januar = normales Kalenderjahr (1.1.-31.12.). Bei anderer
+  Wahl, z.B. Juli, läuft das Abrechnungsjahr vom 1.7. bis 30.6. des Folgejahres.</p>
   <label>Notizen</label>
   <textarea name="notizen" rows="2"></textarea>
   <button type="submit">Anlegen</button>

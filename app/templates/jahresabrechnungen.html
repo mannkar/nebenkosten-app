@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Jahresabrechnungen{% endblock %}
+{% block content %}
+<h1>Jahresabrechnungen</h1>
+<p class="muted">Der Jahr-Filter bezieht sich auf das Ende des Abrechnungszeitraums.</p>
+
+<form method="get" action="/jahresabrechnungen" style="margin-bottom:1rem;">
+  <label style="font-weight:600; font-size:0.85rem;">Objekt</label>
+  <select name="objekt_id" onchange="this.form.submit();">
+    <option value="">Alle Objekte</option>
+    {% for o in objekte %}
+    <option value="{{ o.id }}" {% if objekt_filter == o.id|string %}selected{% endif %}>{{ o.bezeichnung }}</option>
+    {% endfor %}
+  </select>
+  <label style="font-weight:600; font-size:0.85rem;">Jahr (Abrechnungsende)</label>
+  <select name="jahr" onchange="this.form.submit();">
+    <option value="" {% if jahr_filter == "" %}selected{% endif %}>Alle Jahre</option>
+    {% for j in verfuegbare_jahre %}
+    <option value="{{ j }}" {% if jahr_filter == j|string %}selected{% endif %}>{{ j }}</option>
+    {% endfor %}
+  </select>
+</form>
+
+<table>
+  <tr><th>Objekt</th><th>Zeitraum</th><th>Status</th><th></th></tr>
+  {% for ja in jahresabrechnungen %}
+  <tr>
+    <td><a href="/objekte/{{ ja.objekt.id }}">{{ ja.objekt.bezeichnung }}</a></td>
+    <td>{{ ja.zeitraum_von }} – {{ ja.zeitraum_bis }}</td>
+    <td>
+      {% if ja.status == "berechnet" %}<span class="badge ok">berechnet</span>
+      {% else %}<span class="badge">erfasst</span>{% endif %}
+    </td>
+    <td><a class="btn" href="/jahresabrechnungen/{{ ja.id }}">Öffnen</a></td>
+  </tr>
+  {% else %}
+  <tr><td colspan="4" class="muted">Keine Jahresabrechnungen gefunden.</td></tr>
+  {% endfor %}
+</table>
+{% endblock %}

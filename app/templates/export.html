@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}CSV-Export{% endblock %}
+{% block content %}
+<h1>CSV-Export</h1>
+<p class="muted">Rohdaten aller Tabellen als CSV herunterladen.</p>
+<p>
+  {% for key, label in tabellen %}
+  <a class="btn" href="/export/{{ key }}.csv">{{ label }}</a>
+  {% endfor %}
+</p>
+{% endblock %}

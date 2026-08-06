@@ -38,6 +38,9 @@ class Objekt(Base):
     miteigentumsanteil = Column(String)  # z.B. "45,3/1000"
     hausgeld_monatlich = Column(Float)
     verwaltung_id = Column(Integer, ForeignKey("verwaltung.id"), nullable=True)
+    # Monat (1-12), in dem das Abrechnungsjahr beginnt. 1 = Kalenderjahr
+    # (1.1.-31.12.), z.B. 7 = Wirtschaftsjahr 1.7.-30.6. des Folgejahres.
+    abrechnung_start_monat = Column(Integer, nullable=False, default=1)
     notizen = Column(Text)
 
     verwaltung = relationship("Verwaltung", back_populates="objekte")
@@ -50,6 +53,9 @@ class Objekt(Base):
     zaehler = relationship(
         "Zaehler", back_populates="objekt", cascade="all, delete-orphan"
     )
+    leerstaende = relationship(
+        "Leerstand", back_populates="objekt", cascade="all, delete-orphan"
+    )
 
 
 class Mietverhaeltnis(Base):
@@ -57,13 +63,44 @@ class Mietverhaeltnis(Base):
 
     id = Column(Integer, primary_key=True)
     objekt_id = Column(Integer, ForeignKey("objekt.id"), nullable=False)
-    mietername = Column(String, nullable=False)
     einzug = Column(Date, nullable=False)
     auszug = Column(Date, nullable=True)  # NULL = aktuell noch Mieter
-    kontakt = Column(String)
     notizen = Column(Text)
 
     objekt = relationship("Objekt", back_populates="mietverhaeltnisse")
+    personen = relationship(
+        "Person", back_populates="mietverhaeltnis", cascade="all, delete-orphan",
+        order_by="Person.id",
+    )
+
+    @property
+    def anzeige_name(self) -> str:
+        """Zusammengesetzter Name aller Personen des Mietverhaeltnisses,
+        z.B. bei einer WG: 'Max Mustermann / Erika Musterfrau'."""
+        namen = [f"{p.vorname} {p.nachname}".strip() for p in self.personen]
+        return " / ".join(namen) if namen else "(keine Person erfasst)"
+
+
+class Person(Base):
+    """Eine Person innerhalb eines Mietverhaeltnisses. Ein Mietverhaeltnis
+    kann beliebig viele Personen haben (z.B. Wohngemeinschaft)."""
+    __tablename__ = "person"
+
+    id = Column(Integer, primary_key=True)
+    mietverhaeltnis_id = Column(Integer, ForeignKey("mietverhaeltnis.id"), nullable=False)
+    anrede = Column(String)
+    vorname = Column(String, nullable=False)
+    nachname = Column(String, nullable=False)
+    email = Column(String)
+    telefon = Column(String)
+    adresse_vor_strasse = Column(String)
+    adresse_vor_plz = Column(String)
+    adresse_vor_ort = Column(String)
+    adresse_nach_strasse = Column(String)
+    adresse_nach_plz = Column(String)
+    adresse_nach_ort = Column(String)
+
+    mietverhaeltnis = relationship("Mietverhaeltnis", back_populates="personen")
 
 
 class Kostenart(Base):
@@ -87,6 +124,11 @@ class Jahresabrechnung(Base):
     zeitraum_bis = Column(Date, nullable=False)
     erhalten_am = Column(Date, nullable=True)
     status = Column(String, default="erfasst")  # erfasst | berechnet
+    berechnet_am = Column(DateTime, nullable=True)
+    # Vom Hausverwalter abgerechneter Gesamtbetrag fuer die Abrechnungsperiode
+    # (Summe aller Positionen, umlagefaehig + nicht umlagefaehig). Dient als
+    # Kontrollsumme gegen die selbst erfassten Abrechnungspositionen.
+    hv_gesamtbetrag = Column(Float, nullable=True)
     notizen = Column(Text)
 
     __table_args__ = (UniqueConstraint("objekt_id", "jahr", name="uq_objekt_jahr"),)
@@ -98,6 +140,10 @@ class Jahresabrechnung(Base):
     )
     mieterabrechnungen = relationship(
         "Mieterabrechnung", back_populates="jahresabrechnung",
+        cascade="all, delete-orphan"
+    )
+    vorauszahlungen = relationship(
+        "Vorauszahlung", back_populates="jahresabrechnung",
         cascade="all, delete-orphan"
     )
 
@@ -114,6 +160,27 @@ class Abrechnungsposition(Base):
 
     jahresabrechnung = relationship("Jahresabrechnung", back_populates="positionen")
     kostenart = relationship("Kostenart")
+
+
+class Vorauszahlung(Base):
+    """Vom Mieter geleistete Vorauszahlung fuer einen Abrechnungszeitraum,
+    als Anzahl Monate x Betrag - z.B. bei einer unterjaehrigen Anpassung
+    5 Monate zu 370 Euro + 7 Monate zu 385 Euro als zwei Eintraege."""
+    __tablename__ = "vorauszahlung"
+
+    id = Column(Integer, primary_key=True)
+    jahresabrechnung_id = Column(Integer, ForeignKey("jahresabrechnung.id"), nullable=False)
+    mietverhaeltnis_id = Column(Integer, ForeignKey("mietverhaeltnis.id"), nullable=False)
+    anzahl_monate = Column(Integer, nullable=False)
+    betrag_pro_monat = Column(Float, nullable=False)
+    bemerkung = Column(String)  # z.B. "Jan-Mai" oder "ab Anpassung Juni"
+
+    jahresabrechnung = relationship("Jahresabrechnung", back_populates="vorauszahlungen")
+    mietverhaeltnis = relationship("Mietverhaeltnis")
+
+    @property
+    def summe(self) -> float:
+        return self.anzahl_monate * self.betrag_pro_monat
 
 
 class Zaehler(Base):
@@ -150,9 +217,14 @@ class Mieterabrechnung(Base):
 
     id = Column(Integer, primary_key=True)
     jahresabrechnung_id = Column(Integer, ForeignKey("jahresabrechnung.id"), nullable=False)
-    mietverhaeltnis_id = Column(Integer, ForeignKey("mietverhaeltnis.id"), nullable=False)
+    # NULL = Leerstandszeitraum (kein Mietverhaeltnis vorhanden). In dem Fall
+    # sind von/bis gesetzt, damit der Zeitraum trotzdem bekannt ist.
+    mietverhaeltnis_id = Column(Integer, ForeignKey("mietverhaeltnis.id"), nullable=True)
+    von = Column(Date, nullable=True)
+    bis = Column(Date, nullable=True)
     tage_im_zeitraum = Column(Integer, nullable=False)
     summe_umlagefaehig = Column(Float, nullable=False)
+    summe_vorauszahlung = Column(Float, nullable=False, default=0.0)
 
     jahresabrechnung = relationship("Jahresabrechnung", back_populates="mieterabrechnungen")
     mietverhaeltnis = relationship("Mietverhaeltnis")
@@ -160,6 +232,36 @@ class Mieterabrechnung(Base):
         "Mieterabrechnungsposition", back_populates="mieterabrechnung",
         cascade="all, delete-orphan"
     )
+
+    @property
+    def ist_leerstand(self) -> bool:
+        return self.mietverhaeltnis_id is None
+
+    @property
+    def titel(self) -> str:
+        if self.ist_leerstand:
+            return f"Leerstand ({self.von} – {self.bis})"
+        return self.mietverhaeltnis.anzeige_name
+
+    @property
+    def anzeige_von(self):
+        return self.von if self.ist_leerstand else self.mietverhaeltnis.einzug
+
+    @property
+    def anzeige_bis(self):
+        return self.bis if self.ist_leerstand else self.mietverhaeltnis.auszug
+
+    @property
+    def sortier_datum(self):
+        """Fuer die chronologische Sortierung von Mieter- und
+        Leerstands-Abrechnungen in der Ergebnisliste."""
+        return self.anzeige_von
+
+    @property
+    def differenz(self) -> float:
+        """Positiv = Nachzahlung des Mieters, negativ = Guthaben des Mieters.
+        Bei Leerstand nicht relevant (keine Vorauszahlung vorhanden)."""
+        return round(self.summe_umlagefaehig - self.summe_vorauszahlung, 2)
 
 
 class Mieterabrechnungsposition(Base):
@@ -191,3 +293,17 @@ class AenderungHistorie(Base):
     alter_wert = Column(String)
     neuer_wert = Column(String)
     geaendert_am = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
+class Leerstand(Base):
+    """Erfasste Leerstandszeitraeume eines Objekts, z.B. die Luecke zwischen
+    dem Auszug des einen und dem Einzug des naechsten Mietverhaeltnisses."""
+    __tablename__ = "leerstand"
+
+    id = Column(Integer, primary_key=True)
+    objekt_id = Column(Integer, ForeignKey("objekt.id"), nullable=False)
+    von = Column(Date, nullable=False)
+    bis = Column(Date, nullable=False)
+    notizen = Column(Text)
+
+    objekt = relationship("Objekt", back_populates="leerstaende")

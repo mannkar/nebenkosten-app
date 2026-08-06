@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Mieter{% endblock %}
+{% block content %}
+<h1>Mieter</h1>
+
+<p>
+  <label style="font-weight:600; font-size:0.85rem;">Neues Mietverhältnis anlegen für:</label>
+  <select onchange="if (this.value) { window.location.href = '/objekte/' + this.value + '/mietverhaeltnisse/neu'; }">
+    <option value="">– Objekt wählen –</option>
+    {% for o in objekte %}
+    <option value="{{ o.id }}">{{ o.bezeichnung }}</option>
+    {% endfor %}
+  </select>
+</p>
+
+<form method="get" action="/mieter" style="margin-bottom:1rem;">
+  <label style="font-weight:600; font-size:0.85rem;">Nach Objekt filtern:</label>
+  <select name="objekt_id" onchange="this.form.submit();">
+    <option value="">Alle Objekte</option>
+    {% for o in objekte %}
+    <option value="{{ o.id }}" {% if objekt_filter == o.id|string %}selected{% endif %}>{{ o.bezeichnung }}</option>
+    {% endfor %}
+  </select>
+  {% if objekt_filter %}
+  <a class="btn" href="/mieter">Filter zurücksetzen</a>
+  {% endif %}
+</form>
+
+<table>
+  <tr><th>Objekt</th><th>Mieter</th><th>Personen</th><th>Einzug</th><th>Auszug</th><th></th></tr>
+  {% for mv in mietverhaeltnisse %}
+  <tr>
+    <td><a href="/objekte/{{ mv.objekt.id }}">{{ mv.objekt.bezeichnung }}</a></td>
+    <td>{{ mv.anzeige_name }}</td>
+    <td>{{ mv.personen|length }}</td>
+    <td>{{ mv.einzug }}</td>
+    <td>{{ mv.auszug or "aktuell" }}</td>
+    <td><a class="btn" href="/mietverhaeltnisse/{{ mv.id }}/bearbeiten">Bearbeiten</a></td>
+  </tr>
+  {% else %}
+  <tr><td colspan="6" class="muted">Keine Mietverhältnisse gefunden.</td></tr>
+  {% endfor %}
+</table>
+{% endblock %}

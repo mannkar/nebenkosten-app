@@ -5,12 +5,22 @@
 <h1>Jahresabrechnung {{ ja.jahr }} – {{ ja.objekt.bezeichnung }}</h1>
 <p class="muted">Zeitraum {{ ja.zeitraum_von }} – {{ ja.zeitraum_bis }} ({{ beleg.gesamttage }} Tage)</p>
 
+<p>
+  <label style="font-weight:600; font-size:0.85rem;">Gesamtbetrag laut Hausverwalter-Abrechnung</label><br>
+  <form class="inline" method="post" action="/jahresabrechnungen/{{ ja.id }}/hv_gesamtbetrag">
+    <input name="hv_gesamtbetrag" style="width:140px; display:inline-block;"
+           value="{{ '%.2f'|format(ja.hv_gesamtbetrag) if ja.hv_gesamtbetrag is not none else '' }}"
+           placeholder="z.B. 4200,00">
+    <button type="submit" class="btn">Speichern</button>
+  </form>
+</p>
+
 <h2>Belegung im Zeitraum</h2>
 <table>
   <tr><th>Mieter</th><th>Einzug</th><th>Auszug</th><th>Tage im Zeitraum</th></tr>
   {% for mv, tage in beleg.relevante_mv %}
   <tr>
-    <td>{{ mv.mietername }}</td><td>{{ mv.einzug }}</td><td>{{ mv.auszug or "aktuell" }}</td><td>{{ tage }}</td>
+    <td>{{ mv.anzeige_name }}</td><td>{{ mv.einzug }}</td><td>{{ mv.auszug or "aktuell" }}</td><td>{{ tage }}</td>
   </tr>
   {% else %}
   <tr><td colspan="4" class="muted">Kein Mietverhältnis im Zeitraum – Kosten bleiben beim Eigentümer.</td></tr>
@@ -26,19 +36,83 @@
   {% endif %}
 </p>
 
-<h2>Abrechnungspositionen (von der Verwaltung)</h2>
+<h2 id="vorauszahlungen">Vorauszahlungen der Mieter</h2>
+<p class="muted">Bei unterjähriger Anpassung mehrere Einträge anlegen, z.B. 5 Monate zu 370 € und
+danach 7 Monate zu 385 €.</p>
+<table>
+  <tr><th>Mieter</th><th>Anzahl Monate</th><th>Betrag/Monat</th><th>Summe</th><th>Bemerkung</th><th></th></tr>
+  {% for vz in ja.vorauszahlungen %}
+  <tr>
+    <td>
+      <select name="mietverhaeltnis_id" form="vz-edit-{{ vz.id }}" required>
+        {% for mv, tage in beleg.relevante_mv %}
+        <option value="{{ mv.id }}" {% if mv.id == vz.mietverhaeltnis_id %}selected{% endif %}>{{ mv.anzeige_name }}</option>
+        {% endfor %}
+      </select>
+    </td>
+    <td><input name="anzahl_monate" form="vz-edit-{{ vz.id }}" type="number" min="1" value="{{ vz.anzahl_monate }}" required></td>
+    <td><input name="betrag_pro_monat" form="vz-edit-{{ vz.id }}" value="{{ '%.2f'|format(vz.betrag_pro_monat) }}" required></td>
+    <td>{{ "%.2f"|format(vz.summe) }} €</td>
+    <td><input name="bemerkung" form="vz-edit-{{ vz.id }}" value="{{ vz.bemerkung or '' }}"></td>
+    <td>
+      <div class="row-actions">
+        <button type="submit" form="vz-edit-{{ vz.id }}" class="btn">Speichern</button>
+        <form class="inline" method="post" action="/jahresabrechnungen/{{ ja.id }}/vorauszahlungen/{{ vz.id }}/loeschen">
+          <button type="submit" class="danger">Löschen</button>
+        </form>
+      </div>
+    </td>
+  </tr>
+  {% else %}
+  <tr><td colspan="6" class="muted">Noch keine Vorauszahlungen erfasst.</td></tr>
+  {% endfor %}
+  <tr>
+    <td>
+      <select name="mietverhaeltnis_id" form="vz-form" required>
+        {% for mv, tage in beleg.relevante_mv %}
+        <option value="{{ mv.id }}">{{ mv.anzeige_name }}</option>
+        {% endfor %}
+      </select>
+    </td>
+    <td><input name="anzahl_monate" form="vz-form" type="number" min="1" required></td>
+    <td><input name="betrag_pro_monat" form="vz-form" required placeholder="370,00"></td>
+    <td></td>
+    <td><input name="bemerkung" form="vz-form" placeholder="z.B. Jan-Mai"></td>
+    <td><button type="submit" form="vz-form" class="btn">+ Hinzufügen</button></td>
+  </tr>
+</table>
+{% for vz in ja.vorauszahlungen %}
+<form id="vz-edit-{{ vz.id }}" method="post" action="/jahresabrechnungen/{{ ja.id }}/vorauszahlungen/{{ vz.id }}/bearbeiten"></form>
+{% endfor %}
+<form id="vz-form" method="post" action="/jahresabrechnungen/{{ ja.id }}/vorauszahlungen/neu"></form>
+
+<h2 id="abrechnungspositionen">Abrechnungspositionen (von der Verwaltung)</h2>
 <table>
   <tr><th>Kostenart</th><th>Betrag</th><th>Umlagefähig</th><th>Bemerkung</th><th></th></tr>
   {% for p in ja.positionen %}
   <tr>
-    <td>{{ p.kostenart.bezeichnung }}</td>
-    <td>{{ "%.2f"|format(p.betrag) }} €</td>
-    <td>{% if p.umlagefaehig %}<span class="badge ok">ja</span>{% else %}<span class="badge">nein</span>{% endif %}</td>
-    <td>{{ p.bemerkung }}</td>
     <td>
-      <form class="inline" method="post" action="/jahresabrechnungen/{{ ja.id }}/positionen/{{ p.id }}/loeschen">
-        <button type="submit" class="danger">Löschen</button>
-      </form>
+      <select name="kostenart_id" form="pos-edit-{{ p.id }}" required>
+        {% for k in kostenarten %}
+        <option value="{{ k.id }}" {% if k.id == p.kostenart_id %}selected{% endif %}>{{ k.bezeichnung }} ({{ "umlagefähig" if k.umlagefaehig else "nicht umlagefähig" }})</option>
+        {% endfor %}
+      </select>
+    </td>
+    <td><input name="betrag" form="pos-edit-{{ p.id }}" value="{{ '%.2f'|format(p.betrag) }}" required></td>
+    <td>
+      <select name="umlagefaehig" form="pos-edit-{{ p.id }}">
+        <option value="" {% if not p.umlagefaehig %}selected{% endif %}>Standard</option>
+        <option value="1" {% if p.umlagefaehig %}selected{% endif %}>ja</option>
+      </select>
+    </td>
+    <td><input name="bemerkung" form="pos-edit-{{ p.id }}" value="{{ p.bemerkung or '' }}"></td>
+    <td>
+      <div class="row-actions">
+        <button type="submit" form="pos-edit-{{ p.id }}" class="btn">Speichern</button>
+        <form class="inline" method="post" action="/jahresabrechnungen/{{ ja.id }}/positionen/{{ p.id }}/loeschen">
+          <button type="submit" class="danger">Löschen</button>
+        </form>
+      </div>
     </td>
   </tr>
   {% else %}
@@ -48,38 +122,108 @@
     <td colspan="2"><strong>Summe umlagefähig:</strong> {{ "%.2f"|format(ja.positionen|selectattr("umlagefaehig")|sum(attribute="betrag")) }} €</td>
     <td colspan="3"><strong>Summe nicht umlagefähig:</strong> {{ "%.2f"|format(ja.positionen|rejectattr("umlagefaehig")|sum(attribute="betrag")) }} €</td>
   </tr>
-</table>
-
-<form class="card" method="post" action="/jahresabrechnungen/{{ ja.id }}/positionen/neu">
-  <label>Kostenart</label>
-  <select name="kostenart_id" required>
-    {% for k in kostenarten %}
-    <option value="{{ k.id }}">{{ k.bezeichnung }} ({{ "umlagefähig" if k.umlagefaehig else "nicht umlagefähig" }})</option>
-    {% endfor %}
-  </select>
-  <div class="grid-2">
-    <div><label>Betrag (auf dieses Objekt umgelegt, €)</label><input name="betrag" required placeholder="z.B. 342,10"></div>
-    <div><label>Umlagefähig überschreiben?</label>
-      <select name="umlagefaehig">
-        <option value="">Standard der Kostenart übernehmen</option>
+  <tr>
+    <td colspan="5"><strong>Summe gesamt (zum Vergleich mit der Verwalterabrechnung):</strong> {{ "%.2f"|format(ja.positionen|sum(attribute="betrag")) }} €</td>
+  </tr>
+  <tr>
+    <td>
+      <select name="kostenart_id" form="pos-form" required>
+        {% for k in kostenarten %}
+        <option value="{{ k.id }}">{{ k.bezeichnung }} ({{ "umlagefähig" if k.umlagefaehig else "nicht umlagefähig" }})</option>
+        {% endfor %}
+      </select>
+    </td>
+    <td><input name="betrag" form="pos-form" required placeholder="342,10"></td>
+    <td>
+      <select name="umlagefaehig" form="pos-form">
+        <option value="">Standard</option>
         <option value="1">ja</option>
       </select>
-    </div>
-  </div>
-  <label>Bemerkung</label>
-  <input name="bemerkung">
-  <button type="submit">Position hinzufügen</button>
+    </td>
+    <td><input name="bemerkung" form="pos-form"></td>
+    <td><button type="submit" form="pos-form" class="btn">+ Hinzufügen</button></td>
+  </tr>
+</table>
+{% for p in ja.positionen %}
+<form id="pos-edit-{{ p.id }}" method="post" action="/jahresabrechnungen/{{ ja.id }}/positionen/{{ p.id }}/bearbeiten"></form>
+{% endfor %}
+<form id="pos-form" method="post" action="/jahresabrechnungen/{{ ja.id }}/positionen/neu"></form>
+
+<h2>Gradtagszahlen (§ 9b HeizkV)</h2>
+<p class="muted">Offizielle Tabelle zur Verteilung der Heizkosten bei Mieterwechsel. Juni, Juli und
+August werden als ein Block mit zusammen 40 Promille geführt.</p>
+<table style="max-width: 640px;">
+  <tr>
+    <th>Jan.</th><th>Feb.</th><th>März</th><th>Apr.</th><th>Mai</th><th>Jun.–Aug.</th>
+    <th>Sep.</th><th>Okt.</th><th>Nov.</th><th>Dez.</th><th>Summe</th>
+  </tr>
+  {% set summe = gradtagszahlen[1] + gradtagszahlen[2] + gradtagszahlen[3] + gradtagszahlen[4]
+    + gradtagszahlen[5] + gradtagszahlen[6] + gradtagszahlen[9] + gradtagszahlen[10]
+    + gradtagszahlen[11] + gradtagszahlen[12] %}
+  <tr>
+    <td>{{ gradtagszahlen[1] }}</td>
+    <td>{{ gradtagszahlen[2] }}</td>
+    <td>{{ gradtagszahlen[3] }}</td>
+    <td>{{ gradtagszahlen[4] }}</td>
+    <td>{{ gradtagszahlen[5] }}</td>
+    <td>{{ gradtagszahlen[6] }}</td>
+    <td>{{ gradtagszahlen[9] }}</td>
+    <td>{{ gradtagszahlen[10] }}</td>
+    <td>{{ gradtagszahlen[11] }}</td>
+    <td>{{ gradtagszahlen[12] }}</td>
+    <td><strong>{{ summe }}</strong></td>
+  </tr>
+</table>
+
+<h2 id="berechnung">Berechnung</h2>
+<p class="muted">
+  {% if ja.berechnet_am %}
+  Zuletzt berechnet am {{ ja.berechnet_am.strftime("%d.%m.%Y um %H:%M:%S") }} Uhr.
+  {% else %}
+  Noch nicht berechnet.
+  {% endif %}
+</p>
+<form method="post" action="/jahresabrechnungen/{{ ja.id }}/berechnen">
+  <button type="submit" class="btn">Verteilung (neu) berechnen</button>
 </form>
 
-<h2>Berechnung</h2>
-<form method="post" action="/jahresabrechnungen/{{ ja.id }}/berechnen">
-  <button type="submit" class="btn">Zeitanteilige Verteilung (neu) berechnen</button>
-</form>
+<h2 id="pruefung">Prüfung gegen Hausverwalter-Abrechnung</h2>
+{% if pruefung %}
+<table>
+  <tr><th>Prüfung</th><th>Ist</th><th>Soll (HV)</th><th>Differenz</th><th></th></tr>
+  <tr>
+    <td>Summe aller Abrechnungspositionen</td>
+    <td>{{ "%.2f"|format(pruefung.positionen.ist) }} €</td>
+    <td>{{ "%.2f"|format(pruefung.positionen.soll) }} €</td>
+    <td>{{ "%.2f"|format(pruefung.positionen.differenz) }} €</td>
+    <td>
+      {% if pruefung.positionen.stimmt %}<span class="badge ok">stimmt überein</span>
+      {% else %}<span class="badge warn">Abweichung</span>{% endif %}
+    </td>
+  </tr>
+  <tr>
+    <td>Summe verteilt (Mieter + Leerstand) + nicht umlagefähige Positionen</td>
+    <td>{{ "%.2f"|format(pruefung.verteilung.ist) }} €</td>
+    <td>{{ "%.2f"|format(pruefung.verteilung.soll) }} €</td>
+    <td>{{ "%.2f"|format(pruefung.verteilung.differenz) }} €</td>
+    <td>
+      {% if pruefung.verteilung.stimmt %}<span class="badge ok">stimmt überein</span>
+      {% else %}<span class="badge warn">Abweichung</span>{% endif %}
+    </td>
+  </tr>
+</table>
+<p class="muted">Die zweite Prüfung ist nur aussagekräftig, wenn die Verteilung bereits berechnet wurde.</p>
+{% else %}
+<p class="muted">Gesamtbetrag laut Hausverwalter-Abrechnung oben eintragen, um die Prüfung anzuzeigen.</p>
+{% endif %}
 
 {% if ja.mieterabrechnungen %}
-<h3>Ergebnis je Mieter</h3>
-{% for ma in ja.mieterabrechnungen %}
-<h4>{{ ma.mietverhaeltnis.mietername }} ({{ ma.tage_im_zeitraum }} von {{ beleg.gesamttage }} Tagen)</h4>
+<h3>Ergebnis (chronologisch, inkl. Leerstand)</h3>
+{% for ma in ja.mieterabrechnungen|sort(attribute="sortier_datum") %}
+<h4>
+  {{ ma.titel }} ({{ ma.tage_im_zeitraum }} von {{ beleg.gesamttage }} Tagen)
+  {% if ma.ist_leerstand %}<span class="badge warn">Leerstand</span>{% endif %}
+</h4>
 <table>
   <tr><th>Kostenart</th><th>Anteil</th><th>Methode</th><th>Detail</th></tr>
   {% for pos in ma.positionen %}
@@ -90,7 +234,20 @@
     <td>{{ pos.berechnungsdetail }}</td>
   </tr>
   {% endfor %}
-  <tr><td><strong>Summe</strong></td><td colspan="3"><strong>{{ "%.2f"|format(ma.summe_umlagefaehig) }} €</strong></td></tr>
+  {% if ma.ist_leerstand %}
+  <tr><td><strong>Kosten, die beim Eigentümer verbleiben</strong></td><td colspan="3"><strong>{{ "%.2f"|format(ma.summe_umlagefaehig) }} €</strong></td></tr>
+  {% else %}
+  <tr><td><strong>Summe umlagefähige Kosten</strong></td><td colspan="3"><strong>{{ "%.2f"|format(ma.summe_umlagefaehig) }} €</strong></td></tr>
+  <tr><td>Summe Vorauszahlungen</td><td colspan="3">{{ "%.2f"|format(ma.summe_vorauszahlung) }} €</td></tr>
+  <tr>
+    <td><strong>{% if ma.differenz >= 0 %}Nachzahlung{% else %}Guthaben{% endif %}</strong></td>
+    <td colspan="3">
+      <strong class="{% if ma.differenz >= 0 %}badge warn{% else %}badge ok{% endif %}">
+        {{ "%.2f"|format(ma.differenz|abs) }} €
+      </strong>
+    </td>
+  </tr>
+  {% endif %}
 </table>
 {% endfor %}
 <p><a class="btn" href="/jahresabrechnungen/{{ ja.id }}/export.csv">Ergebnis als CSV exportieren</a></p>

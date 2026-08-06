@@ -9,7 +9,8 @@
   {{ objekt.wohnflaeche_qm or "-" }} m² ·
   MEA {{ objekt.miteigentumsanteil or "-" }} ·
   Hausgeld {{ objekt.hausgeld_monatlich or "-" }} €/Monat ·
-  Verwaltung: {% if objekt.verwaltung %}<a href="/verwaltungen/{{ objekt.verwaltung.id }}">{{ objekt.verwaltung.name }}</a>{% else %}selbstverwaltet{% endif %}
+  Verwaltung: {% if objekt.verwaltung %}<a href="/verwaltungen/{{ objekt.verwaltung.id }}">{{ objekt.verwaltung.name }}</a>{% else %}selbstverwaltet{% endif %} ·
+  Abrechnungsjahr ab {{ dict(monate)[objekt.abrechnung_start_monat] }}
 </p>
 
 <h2>Stammdaten bearbeiten</h2>
@@ -40,6 +41,14 @@
     <option value="{{ v.id }}" {% if objekt.verwaltung_id == v.id %}selected{% endif %}>{{ v.name }}</option>
     {% endfor %}
   </select>
+  <label>Beginn des Abrechnungsjahres</label>
+  <select name="abrechnung_start_monat">
+    {% for nr, name in monate %}
+    <option value="{{ nr }}" {% if objekt.abrechnung_start_monat == nr %}selected{% endif %}>{{ name }}</option>
+    {% endfor %}
+  </select>
+  <p class="muted" style="margin-top:0.2rem;">Gilt für alle künftig angelegten Jahresabrechnungen
+  dieses Objekts. Bestehende Jahresabrechnungen ändern sich dadurch nicht rückwirkend.</p>
   <label>Notizen</label>
   <textarea name="notizen" rows="2">{{ objekt.notizen or '' }}</textarea>
   <button type="submit">Speichern</button>
@@ -47,38 +56,36 @@
 
 <h2>Mietverhältnisse</h2>
 <table>
-  <tr><th>Mieter</th><th>Einzug</th><th>Auszug</th><th>Kontakt</th><th></th></tr>
+  <tr><th>Mieter</th><th>Personen</th><th>Einzug</th><th>Auszug</th><th></th></tr>
   {% for mv in objekt.mietverhaeltnisse|sort(attribute="einzug") %}
   <tr>
-    <td>{{ mv.mietername }}</td>
+    <td>{{ mv.anzeige_name }}</td>
+    <td>{{ mv.personen|length }}</td>
     <td>{{ mv.einzug }}</td>
     <td>{{ mv.auszug or "aktuell" }}</td>
-    <td>{{ mv.kontakt }}</td>
-    <td>
-      <form class="inline" method="post" action="/mietverhaeltnisse/{{ mv.id }}/loeschen"
-            onsubmit="return confirm('Mietverhältnis wirklich löschen?');">
-        <button type="submit" class="danger">Löschen</button>
-      </form>
-    </td>
+    <td><a class="btn" href="/mietverhaeltnisse/{{ mv.id }}/bearbeiten">Bearbeiten</a></td>
   </tr>
   {% else %}
   <tr><td colspan="5" class="muted">Noch keine Mietverhältnisse.</td></tr>
   {% endfor %}
 </table>
 
-<form class="card" method="post" action="/objekte/{{ objekt.id }}/mietverhaeltnisse/neu">
-  <label>Mieter (Name)</label>
-  <input name="mietername" required>
-  <div class="grid-2">
-    <div><label>Einzug</label><input name="einzug" type="date" required></div>
-    <div><label>Auszug (leer = aktuell)</label><input name="auszug" type="date"></div>
-  </div>
-  <label>Kontakt</label>
-  <input name="kontakt">
-  <label>Notizen</label>
-  <textarea name="notizen" rows="2"></textarea>
-  <button type="submit">Mietverhältnis hinzufügen</button>
-</form>
+<p><a class="btn" href="/objekte/{{ objekt.id }}/mietverhaeltnisse/neu">+ Neues Mietverhältnis</a></p>
+
+<h2>Leerstand</h2>
+<table>
+  <tr><th>Von</th><th>Bis</th><th>Tage</th><th>Notizen</th></tr>
+  {% for l in objekt.leerstaende|sort(attribute="von") %}
+  <tr>
+    <td>{{ l.von }}</td>
+    <td>{{ l.bis }}</td>
+    <td>{{ (l.bis - l.von).days + 1 }}</td>
+    <td>{{ l.notizen }}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="4" class="muted">Kein erfasster Leerstand.</td></tr>
+  {% endfor %}
+</table>
 
 <h2>Jahresabrechnungen</h2>
 <table>
@@ -101,10 +108,8 @@
 <form class="card" method="post" action="/objekte/{{ objekt.id }}/jahresabrechnungen/neu">
   <label>Jahr</label>
   <input name="jahr" type="number" required placeholder="z.B. 2025">
-  <div class="grid-2">
-    <div><label>Zeitraum von (leer = 1.1.)</label><input name="zeitraum_von" type="date"></div>
-    <div><label>Zeitraum bis (leer = 31.12.)</label><input name="zeitraum_bis" type="date"></div>
-  </div>
+  <p class="muted" style="margin-top:0.2rem;">Der Zeitraum ergibt sich automatisch aus dem am Objekt
+  hinterlegten Beginn des Abrechnungsjahres ({{ dict(monate)[objekt.abrechnung_start_monat] }}).</p>
   <label>Von Verwaltung erhalten am</label>
   <input name="erhalten_am" type="date">
   <button type="submit">Jahresabrechnung anlegen</button>

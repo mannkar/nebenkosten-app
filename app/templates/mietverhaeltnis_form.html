@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+{% block title %}{% if mv %}Mietverhältnis bearbeiten{% else %}Neues Mietverhältnis{% endif %}{% endblock %}
+{% block content %}
+<p><a href="/objekte/{{ objekt.id }}">&larr; {{ objekt.bezeichnung }}</a></p>
+<h1>{% if mv %}Mietverhältnis bearbeiten{% else %}Neues Mietverhältnis{% endif %}</h1>
+<p class="muted">{{ objekt.bezeichnung }}</p>
+
+<form class="card" method="post" style="max-width: 720px;"
+      action="{% if mv %}/mietverhaeltnisse/{{ mv.id }}/bearbeiten{% else %}/objekte/{{ objekt.id }}/mietverhaeltnisse/neu{% endif %}">
+
+  {% if laufendes_mv %}
+  <div style="background:#fdf3e0; border-left:4px solid var(--accent); padding:0.8rem 1rem; margin-bottom:1.2rem; border-radius:4px;">
+    <p style="margin-top:0;"><strong>Achtung:</strong> für dieses Objekt läuft noch ein Mietverhältnis:
+    {{ laufendes_mv.anzeige_name }} (Einzug {{ laufendes_mv.einzug }}).</p>
+    <input type="hidden" name="altes_mv_id" value="{{ laufendes_mv.id }}">
+    <label>Dieses Mietverhältnis beenden zum (leer lassen = unverändert)</label>
+    <input name="altes_mv_auszug" type="date">
+    <p class="muted" style="margin-bottom:0;">Liegt zwischen dem Auszugsdatum und dem neuen Einzug eine
+    Lücke, wird sie automatisch als Leerstand erfasst.</p>
+  </div>
+  {% endif %}
+
+  <div class="grid-2">
+    <div><label>Einzug</label>
+      <input name="einzug" type="date" value="{{ mv.einzug if mv else '' }}" required></div>
+    <div><label>Auszug (leer = aktuell)</label>
+      <input name="auszug" type="date" value="{{ mv.auszug if mv and mv.auszug else '' }}"></div>
+  </div>
+  <label>Notizen zum Mietverhältnis</label>
+  <textarea name="notizen" rows="2">{{ mv.notizen if mv else '' }}</textarea>
+
+  <h3 style="margin-top:1.5rem;">Personen</h3>
+  <p class="muted">Bei einer Wohngemeinschaft beliebig viele Personen hinzufügen.</p>
+
+  <div id="personen-liste">
+    {% set personen_liste = mv.personen if (mv and mv.personen) else [none] %}
+    {% for person in personen_liste %}
+    <div class="person-block">
+      <div class="grid-2">
+        <div><label>Anrede</label>
+          <select name="person_anrede">
+            <option value="" {% if not person or not person.anrede %}selected{% endif %}>–</option>
+            <option value="Herr" {% if person and person.anrede == "Herr" %}selected{% endif %}>Herr</option>
+            <option value="Frau" {% if person and person.anrede == "Frau" %}selected{% endif %}>Frau</option>
+            <option value="Divers" {% if person and person.anrede == "Divers" %}selected{% endif %}>Divers</option>
+          </select>
+        </div>
+        <div></div>
+      </div>
+      <div class="grid-2">
+        <div><label>Vorname</label>
+          <input name="person_vorname" value="{{ person.vorname if person else '' }}"></div>
+        <div><label>Nachname</label>
+          <input name="person_nachname" value="{{ person.nachname if person else '' }}"></div>
+      </div>
+      <div class="grid-2">
+        <div><label>E-Mail</label>
+          <input name="person_email" type="email" value="{{ person.email if person else '' }}"></div>
+        <div><label>Telefon</label>
+          <input name="person_telefon" value="{{ person.telefon if person else '' }}"></div>
+      </div>
+      <p class="muted" style="margin-bottom:0.2rem;">Adresse vor Mietverhältnis</p>
+      <div class="grid-2">
+        <div><label>Straße</label>
+          <input name="person_adresse_vor_strasse" value="{{ person.adresse_vor_strasse if person else '' }}"></div>
+        <div><label>PLZ / Ort</label>
+          <div style="display:flex; gap:0.5rem;">
+            <input name="person_adresse_vor_plz" value="{{ person.adresse_vor_plz if person else '' }}" style="max-width:100px">
+            <input name="person_adresse_vor_ort" value="{{ person.adresse_vor_ort if person else '' }}">
+          </div>
+        </div>
+      </div>
+      <p class="muted" style="margin-bottom:0.2rem;">Adresse nach Mietverhältnis</p>
+      <div class="grid-2">
+        <div><label>Straße</label>
+          <input name="person_adresse_nach_strasse" value="{{ person.adresse_nach_strasse if person else '' }}"></div>
+        <div><label>PLZ / Ort</label>
+          <div style="display:flex; gap:0.5rem;">
+            <input name="person_adresse_nach_plz" value="{{ person.adresse_nach_plz if person else '' }}" style="max-width:100px">
+            <input name="person_adresse_nach_ort" value="{{ person.adresse_nach_ort if person else '' }}">
+          </div>
+        </div>
+      </div>
+      <p>
+        <button type="button" class="btn" onclick="adresseVonErsterPersonUebernehmen(this)">Adresse von Person 1 übernehmen</button>
+        <button type="button" class="btn danger" onclick="personEntfernen(this)">Person entfernen</button>
+      </p>
+      <hr style="border:none; border-top:1px solid var(--border); margin:1rem 0;">
+    </div>
+    {% endfor %}
+  </div>
+
+  <p><button type="button" class="btn" onclick="personHinzufuegen()">+ Person hinzufügen</button></p>
+
+  <button type="submit">{% if mv %}Speichern{% else %}Mietverhältnis anlegen{% endif %}</button>
+</form>
+
+<template id="person-template">
+  <div class="person-block">
+    <div class="grid-2">
+      <div><label>Anrede</label>
+        <select name="person_anrede">
+          <option value="" selected>–</option>
+          <option value="Herr">Herr</option>
+          <option value="Frau">Frau</option>
+          <option value="Divers">Divers</option>
+        </select>
+      </div>
+      <div></div>
+    </div>
+    <div class="grid-2">
+      <div><label>Vorname</label><input name="person_vorname"></div>
+      <div><label>Nachname</label><input name="person_nachname"></div>
+    </div>
+    <div class="grid-2">
+      <div><label>E-Mail</label><input name="person_email" type="email"></div>
+      <div><label>Telefon</label><input name="person_telefon"></div>
+    </div>
+    <p class="muted" style="margin-bottom:0.2rem;">Adresse vor Mietverhältnis</p>
+    <div class="grid-2">
+      <div><label>Straße</label><input name="person_adresse_vor_strasse"></div>
+      <div><label>PLZ / Ort</label>
+        <div style="display:flex; gap:0.5rem;">
+          <input name="person_adresse_vor_plz" style="max-width:100px">
+          <input name="person_adresse_vor_ort">
+        </div>
+      </div>
+    </div>
+    <p class="muted" style="margin-bottom:0.2rem;">Adresse nach Mietverhältnis</p>
+    <div class="grid-2">
+      <div><label>Straße</label><input name="person_adresse_nach_strasse"></div>
+      <div><label>PLZ / Ort</label>
+        <div style="display:flex; gap:0.5rem;">
+          <input name="person_adresse_nach_plz" style="max-width:100px">
+          <input name="person_adresse_nach_ort">
+        </div>
+      </div>
+    </div>
+    <p>
+      <button type="button" class="btn" onclick="adresseVonErsterPersonUebernehmen(this)">Adresse von Person 1 übernehmen</button>
+      <button type="button" class="btn danger" onclick="personEntfernen(this)">Person entfernen</button>
+    </p>
+    <hr style="border:none; border-top:1px solid var(--border); margin:1rem 0;">
+  </div>
+</template>
+
+<script>
+function personHinzufuegen() {
+  var tpl = document.getElementById('person-template');
+  var klon = tpl.content.cloneNode(true);
+  document.getElementById('personen-liste').appendChild(klon);
+}
+
+function personEntfernen(button) {
+  var block = button.closest('.person-block');
+  if (block) { block.remove(); }
+}
+
+function adresseVonErsterPersonUebernehmen(button) {
+  var aktuellerBlock = button.closest('.person-block');
+  var ersterBlock = document.querySelector('#personen-liste .person-block');
+  if (!aktuellerBlock || !ersterBlock || aktuellerBlock === ersterBlock) { return; }
+  var felder = [
+    'person_adresse_vor_strasse', 'person_adresse_vor_plz', 'person_adresse_vor_ort',
+    'person_adresse_nach_strasse', 'person_adresse_nach_plz', 'person_adresse_nach_ort'
+  ];
+  felder.forEach(function (name) {
+    var quelle = ersterBlock.querySelector('[name="' + name + '"]');
+    var ziel = aktuellerBlock.querySelector('[name="' + name + '"]');
+    if (quelle && ziel) { ziel.value = quelle.value; }
+  });
+}
+</script>
+
+{% if mv %}
+<form method="post" action="/mietverhaeltnisse/{{ mv.id }}/loeschen"
+      onsubmit="return confirm('Mietverhältnis wirklich löschen?');">
+  <button type="submit" class="danger">Mietverhältnis löschen</button>
+</form>
+{% endif %}
+{% endblock %}

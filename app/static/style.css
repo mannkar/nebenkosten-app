@@ -2,7 +2,7 @@
   --border: #d8d8d8;
   --accent: #2f5d50;
   --bg: #fafaf8;
-  --danger: #b3392c;
+  --danger: #d9534f;
 }
 * { box-sizing: border-box; }
 body {
@@ -62,9 +62,27 @@ th, td {
   border: 1px solid var(--border);
   padding: 0.45rem 0.6rem;
   text-align: left;
-  font-size: 0.92rem;
 }
-th { background: #f0efe9; }
+th { background: #f0efe9; font-size: 0.92rem; }
+td { font-size: 0.96rem; }
+td input, td select, td button, td .btn {
+  font-size: 0.96rem;
+}
+td input, td select {
+  width: 100%;
+  padding: 0.3rem 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+td .btn, td button {
+  margin-top: 0;
+}
+.row-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: nowrap;
+}
 form.inline { display: inline; }
 form.card {
   background: #fff;
@@ -87,7 +105,7 @@ form.card input, form.card select, form.card textarea {
   border-radius: 4px;
   font-size: 0.92rem;
 }
-form.card button, .btn {
+form.card button, .btn, button.danger {
   margin-top: 1rem;
   background: var(--accent);
   color: #fff;
