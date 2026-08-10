@@ -11,6 +11,17 @@ body {
   color: #222;
   margin: 0;
 }
+/* Einheitliche Basis-Optik fuer alle Eingabefelder, auch ausserhalb von
+   Tabellenzellen oder form.card (z.B. einzelne Inline-Felder). Spezifischere
+   Regeln (td input, form.card input, ...) ueberschreiben dies gezielt. */
+input, select, textarea {
+  font-family: inherit;
+  font-size: 0.96rem;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+button { font-family: inherit; }
 .layout {
   display: flex;
   align-items: flex-start;
@@ -74,7 +85,7 @@ td input, td select {
   border: 1px solid var(--border);
   border-radius: 4px;
 }
-td .btn, td button {
+td .btn, td button, td button.danger {
   margin-top: 0;
 }
 .row-actions {
@@ -82,6 +93,11 @@ td .btn, td button {
   align-items: center;
   gap: 0.4rem;
   flex-wrap: nowrap;
+}
+.row-actions form.inline {
+  display: inline-flex;
+  align-items: center;
+  margin: 0;
 }
 form.inline { display: inline; }
 form.card {
@@ -129,3 +145,18 @@ button.danger, .btn.danger { background: var(--danger); }
 .badge.ok { background: #d3ead2; color: #1f5e1a; }
 .badge.warn { background: #f5e0b8; color: #7a4d00; }
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+details summary {
+  cursor: pointer;
+  padding: 0.4rem 0;
+  list-style: none;
+}
+details summary::-webkit-details-marker { display: none; }
+details summary::before {
+  content: "▶";
+  display: inline-block;
+  font-size: 0.7rem;
+  margin-right: 0.5rem;
+  color: #888;
+  transition: transform 0.15s ease;
+}
+details[open] summary::before { transform: rotate(90deg); }

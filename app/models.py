@@ -43,6 +43,19 @@ class Objekt(Base):
     abrechnung_start_monat = Column(Integer, nullable=False, default=1)
     notizen = Column(Text)
 
+    # Absenderdaten (Vermieter) fuer den Briefkopf der PDF-Nebenkostenabrechnung.
+    # Pro Objekt gepflegt, da unterschiedliche Objekte unterschiedliche
+    # Absender/Bankverbindungen haben koennen.
+    absender_name = Column(String)
+    absender_strasse = Column(String)
+    absender_plz = Column(String)
+    absender_ort = Column(String)
+    absender_telefon = Column(String)
+    absender_email = Column(String)
+    bank_name = Column(String)
+    bank_iban = Column(String)
+    bank_bic = Column(String)
+
     verwaltung = relationship("Verwaltung", back_populates="objekte")
     mietverhaeltnisse = relationship(
         "Mietverhaeltnis", back_populates="objekt", cascade="all, delete-orphan"
@@ -65,6 +78,13 @@ class Mietverhaeltnis(Base):
     objekt_id = Column(Integer, ForeignKey("objekt.id"), nullable=False)
     einzug = Column(Date, nullable=False)
     auszug = Column(Date, nullable=True)  # NULL = aktuell noch Mieter
+    nk_abschlag_monatlich = Column(Float, nullable=True)  # zuletzt bezahlter monatl. NK-Abschlag
+    # Bei gewerblicher Vermietung mit Umsatzsteueroption (par. 9 UStG) wird auf
+    # die Nebenkosten Mehrwertsteuer erhoben (die Vorauszahlung wird dann
+    # ebenfalls brutto/inkl. MwSt. geleistet) - bei privater Wohnraummiete
+    # i.d.R. nicht der Fall (Standardwert False).
+    umsatzsteuerpflichtig = Column(Boolean, default=False, nullable=False)
+    mwst_satz = Column(Float, nullable=True, default=19.0)  # Prozent
     notizen = Column(Text)
 
     objekt = relationship("Objekt", back_populates="mietverhaeltnisse")
@@ -72,6 +92,18 @@ class Mietverhaeltnis(Base):
         "Person", back_populates="mietverhaeltnis", cascade="all, delete-orphan",
         order_by="Person.id",
     )
+    personenzahlen = relationship(
+        "Personenzahl", back_populates="mietverhaeltnis", cascade="all, delete-orphan",
+        order_by="Personenzahl.ab_datum",
+    )
+
+    @property
+    def aktuelle_personenzahl(self):
+        """Zuletzt erfasste Anzahl Personen (neuester Eintrag), oder None
+        wenn noch keine Eintraege vorhanden sind."""
+        if not self.personenzahlen:
+            return None
+        return sorted(self.personenzahlen, key=lambda p: p.ab_datum)[-1].anzahl_personen
 
     @property
     def anzeige_name(self) -> str:
@@ -103,6 +135,22 @@ class Person(Base):
     mietverhaeltnis = relationship("Mietverhaeltnis", back_populates="personen")
 
 
+class Personenzahl(Base):
+    """Anzahl Personen im Haushalt eines Mietverhaeltnisses, mit Datum ab dem
+    sie gilt - ein Verlauf statt eines einzelnen Werts, da sich die Anzahl
+    waehrend eines Mietverhaeltnisses aendern kann (z.B. Kind oder
+    Mitbewohner kommt dazu). Wird fuer Kostenarten mit Verteilmethode
+    "personentage" (Anzahl Personen * Tage) benoetigt."""
+    __tablename__ = "personenzahl"
+
+    id = Column(Integer, primary_key=True)
+    mietverhaeltnis_id = Column(Integer, ForeignKey("mietverhaeltnis.id"), nullable=False)
+    ab_datum = Column(Date, nullable=False)
+    anzahl_personen = Column(Integer, nullable=False)
+
+    mietverhaeltnis = relationship("Mietverhaeltnis", back_populates="personenzahlen")
+
+
 class Kostenart(Base):
     __tablename__ = "kostenart"
 
@@ -111,6 +159,12 @@ class Kostenart(Base):
     umlagefaehig = Column(Boolean, default=True, nullable=False)
     # zeitanteilig | gradtagszahl | zwischenablesung_wasser | manuell
     verteilmethode = Column(String, default="zeitanteilig", nullable=False)
+    # Standardwert: wird diese Kostenart ueblicherweise ueber die
+    # Hausverwalter-Abrechnung abgerechnet? Manche Kosten (z.B. Grundsteuer)
+    # laufen ausserhalb der HV-Abrechnung und duerfen daher nicht in die
+    # Pruefsummen gegen den HV-Gesamtbetrag einfliessen. Pro Abrechnungsposition
+    # individuell ueberschreibbar.
+    hv_abgerechnet = Column(Boolean, default=True, nullable=False)
     notizen = Column(Text)
 
 
@@ -156,10 +210,19 @@ class Abrechnungsposition(Base):
     kostenart_id = Column(Integer, ForeignKey("kostenart.id"), nullable=False)
     betrag = Column(Float, nullable=False)
     umlagefaehig = Column(Boolean, nullable=False, default=True)
+    # NULL = Standardwert der Kostenart (Kostenart.hv_abgerechnet) uebernehmen,
+    # True/False = fuer diese Position/Periode individuell ueberschrieben.
+    hv_abgerechnet = Column(Boolean, nullable=True)
     bemerkung = Column(String)
 
     jahresabrechnung = relationship("Jahresabrechnung", back_populates="positionen")
     kostenart = relationship("Kostenart")
+
+    @property
+    def ist_hv_abgerechnet(self) -> bool:
+        if self.hv_abgerechnet is not None:
+            return self.hv_abgerechnet
+        return self.kostenart.hv_abgerechnet
 
 
 class Vorauszahlung(Base):
@@ -189,13 +252,17 @@ class Zaehler(Base):
     id = Column(Integer, primary_key=True)
     objekt_id = Column(Integer, ForeignKey("objekt.id"), nullable=False)
     typ = Column(String, nullable=False)  # Kaltwasser | Warmwasser | Waerme | Strom
+    # Zapfstelle/Standort, z.B. "Bad", "Küche", "Waschmaschine" - unterscheidet
+    # mehrere Zaehler desselben Typs an einem Objekt voneinander.
+    bezeichnung = Column(String)
     zaehlernummer = Column(String)
     einbaudatum = Column(Date)
     ausbaudatum = Column(Date, nullable=True)  # NULL = aktuell verbaut
 
     objekt = relationship("Objekt", back_populates="zaehler")
     ablesungen = relationship(
-        "Zaehlerstand", back_populates="zaehler", cascade="all, delete-orphan"
+        "Zaehlerstand", back_populates="zaehler", cascade="all, delete-orphan",
+        order_by="Zaehlerstand.datum",
     )
 
 
@@ -262,6 +329,18 @@ class Mieterabrechnung(Base):
         """Positiv = Nachzahlung des Mieters, negativ = Guthaben des Mieters.
         Bei Leerstand nicht relevant (keine Vorauszahlung vorhanden)."""
         return round(self.summe_umlagefaehig - self.summe_vorauszahlung, 2)
+
+    @property
+    def laeuft_ueber_jahresende_hinaus(self) -> bool:
+        """True, wenn dieses Mietverhaeltnis am Ende des Abrechnungszeitraums
+        noch nicht beendet war (Auszug leer oder nach zeitraum_bis). Relevant
+        fuer die Frage, ob ein neuer monatlicher NK-Abschlag festgelegt
+        werden sollte."""
+        if self.ist_leerstand:
+            return False
+        auszug = self.mietverhaeltnis.auszug
+        bis = self.jahresabrechnung.zeitraum_bis
+        return auszug is None or (bis is not None and auszug > bis)
 
 
 class Mieterabrechnungsposition(Base):

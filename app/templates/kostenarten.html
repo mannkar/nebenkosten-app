@@ -3,25 +3,58 @@
 {% block content %}
 <h1>Kostenarten</h1>
 <p class="muted">Zentrale Liste der Kostenarten mit Standard-Umlagefähigkeit und Verteilmethode.
-Gradtagszahl/Zwischenablesung-Logik für Heizung/Wasser folgt in Schritt 2 –
-bis dahin werden auch diese Positionen zeitanteilig verteilt.</p>
+Heizung wird nach Gradtagszahl (§ 9b HeizkV) verteilt, Wasser nach Zählerständen (falls erfasst),
+Kostenarten mit "Personentage" nach der Anzahl Personen je Mietverhältnis (z.B. Müllabfuhr; die
+Anzahl wird am jeweiligen Mietverhältnis gepflegt und kann sich über die Zeit ändern), alles andere
+zeitanteilig nach Tagen. "HV-abgerechnet" legt fest, ob eine Kostenart standardmäßig
+Teil der Hausverwalter-Abrechnung ist (z.B. Grundsteuer meist nicht) – das steuert, ob sie in die
+Prüfsummen gegen den HV-Gesamtbetrag einfließt. Pro Abrechnungsposition individuell überschreibbar.</p>
 
+<h2 id="kostenarten-liste">Bestehende Kostenarten</h2>
 <table>
-  <tr><th>Bezeichnung</th><th>Umlagefähig</th><th>Verteilmethode</th><th></th></tr>
+  <tr><th>Bezeichnung</th><th>Umlagefähig</th><th>Verteilmethode</th><th>HV-abgerechnet</th><th>Notizen</th><th></th></tr>
   {% for k in kostenarten %}
   <tr>
-    <td>{{ k.bezeichnung }}</td>
-    <td>{% if k.umlagefaehig %}<span class="badge ok">ja</span>{% else %}<span class="badge">nein</span>{% endif %}</td>
-    <td>{{ k.verteilmethode }}</td>
+    <td><input name="bezeichnung" form="kostenart-edit-{{ k.id }}" value="{{ k.bezeichnung }}" required></td>
     <td>
-      <form class="inline" method="post" action="/kostenarten/{{ k.id }}/loeschen"
-            onsubmit="return confirm('Kostenart wirklich löschen?');">
-        <button type="submit" class="danger">Löschen</button>
-      </form>
+      <select name="umlagefaehig" form="kostenart-edit-{{ k.id }}">
+        <option value="1" {% if k.umlagefaehig %}selected{% endif %}>ja</option>
+        <option value="" {% if not k.umlagefaehig %}selected{% endif %}>nein</option>
+      </select>
+    </td>
+    <td>
+      <select name="verteilmethode" form="kostenart-edit-{{ k.id }}">
+        <option value="zeitanteilig" {% if k.verteilmethode == "zeitanteilig" %}selected{% endif %}>zeitanteilig (Tage)</option>
+        <option value="personentage" {% if k.verteilmethode == "personentage" %}selected{% endif %}>Personentage (Anzahl Personen × Tage)</option>
+        <option value="gradtagszahl" {% if k.verteilmethode == "gradtagszahl" %}selected{% endif %}>Gradtagszahl (Heizung)</option>
+        <option value="zwischenablesung_wasser" {% if k.verteilmethode == "zwischenablesung_wasser" %}selected{% endif %}>Zwischenablesung (Wasser)</option>
+        <option value="manuell" {% if k.verteilmethode == "manuell" %}selected{% endif %}>manuell / nicht auf Mieter umgelegt</option>
+      </select>
+    </td>
+    <td>
+      <select name="hv_abgerechnet" form="kostenart-edit-{{ k.id }}">
+        <option value="1" {% if k.hv_abgerechnet %}selected{% endif %}>ja</option>
+        <option value="" {% if not k.hv_abgerechnet %}selected{% endif %}>nein</option>
+      </select>
+    </td>
+    <td><input name="notizen" form="kostenart-edit-{{ k.id }}" value="{{ k.notizen or '' }}"></td>
+    <td>
+      <div class="row-actions">
+        <button type="submit" form="kostenart-edit-{{ k.id }}" class="btn">Speichern</button>
+        <form class="inline" method="post" action="/kostenarten/{{ k.id }}/loeschen"
+              onsubmit="return confirm('Kostenart wirklich löschen?');">
+          <button type="submit" class="danger">Löschen</button>
+        </form>
+      </div>
     </td>
   </tr>
+  {% else %}
+  <tr><td colspan="6" class="muted">Noch keine Kostenarten angelegt.</td></tr>
   {% endfor %}
 </table>
+{% for k in kostenarten %}
+<form id="kostenart-edit-{{ k.id }}" method="post" action="/kostenarten/{{ k.id }}/bearbeiten"></form>
+{% endfor %}
 
 <h2>Neue Kostenart</h2>
 <form class="card" method="post" action="/kostenarten/neu">
@@ -31,10 +64,12 @@ bis dahin werden auch diese Positionen zeitanteilig verteilt.</p>
   <label>Verteilmethode</label>
   <select name="verteilmethode">
     <option value="zeitanteilig">zeitanteilig (Tage)</option>
-    <option value="gradtagszahl">Gradtagszahl (Heizung, Schritt 2)</option>
-    <option value="zwischenablesung_wasser">Zwischenablesung (Wasser, Schritt 2)</option>
+    <option value="personentage">Personentage (Anzahl Personen × Tage)</option>
+    <option value="gradtagszahl">Gradtagszahl (Heizung)</option>
+    <option value="zwischenablesung_wasser">Zwischenablesung (Wasser)</option>
     <option value="manuell">manuell / nicht auf Mieter umgelegt</option>
   </select>
+  <label><input type="checkbox" name="hv_abgerechnet" value="1" checked style="width:auto;display:inline"> über Hausverwaltung abgerechnet</label>
   <label>Notizen</label>
   <textarea name="notizen" rows="2"></textarea>
   <button type="submit">Anlegen</button>

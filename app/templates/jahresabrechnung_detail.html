@@ -8,8 +8,8 @@
 <p>
   <label style="font-weight:600; font-size:0.85rem;">Gesamtbetrag laut Hausverwalter-Abrechnung</label><br>
   <form class="inline" method="post" action="/jahresabrechnungen/{{ ja.id }}/hv_gesamtbetrag">
-    <input name="hv_gesamtbetrag" style="width:140px; display:inline-block;"
-           value="{{ '%.2f'|format(ja.hv_gesamtbetrag) if ja.hv_gesamtbetrag is not none else '' }}"
+    <input name="hv_gesamtbetrag" style="width:160px;"
+           value="{{ ja.hv_gesamtbetrag|de if ja.hv_gesamtbetrag is not none else '' }}"
            placeholder="z.B. 4200,00">
     <button type="submit" class="btn">Speichern</button>
   </form>
@@ -51,8 +51,8 @@ danach 7 Monate zu 385 €.</p>
       </select>
     </td>
     <td><input name="anzahl_monate" form="vz-edit-{{ vz.id }}" type="number" min="1" value="{{ vz.anzahl_monate }}" required></td>
-    <td><input name="betrag_pro_monat" form="vz-edit-{{ vz.id }}" value="{{ '%.2f'|format(vz.betrag_pro_monat) }}" required></td>
-    <td>{{ "%.2f"|format(vz.summe) }} €</td>
+    <td><input name="betrag_pro_monat" form="vz-edit-{{ vz.id }}" value="{{ vz.betrag_pro_monat|de }}" required></td>
+    <td>{{ vz.summe|de }}&nbsp;€</td>
     <td><input name="bemerkung" form="vz-edit-{{ vz.id }}" value="{{ vz.bemerkung or '' }}"></td>
     <td>
       <div class="row-actions">
@@ -87,8 +87,11 @@ danach 7 Monate zu 385 €.</p>
 <form id="vz-form" method="post" action="/jahresabrechnungen/{{ ja.id }}/vorauszahlungen/neu"></form>
 
 <h2 id="abrechnungspositionen">Abrechnungspositionen (von der Verwaltung)</h2>
+<p class="muted">"HV-abgerechnet" = Standard: Vorgabe der Kostenart übernehmen. Positionen, die nicht
+über die Hausverwaltung abgerechnet werden (z.B. Grundsteuer), auf "nein" setzen – sie fließen
+dann nicht in die Prüfung gegen den HV-Gesamtbetrag ein.</p>
 <table>
-  <tr><th>Kostenart</th><th>Betrag</th><th>Umlagefähig</th><th>Bemerkung</th><th></th></tr>
+  <tr><th>Kostenart</th><th>Betrag</th><th>Umlagefähig</th><th>HV-abgerechnet</th><th>Bemerkung</th><th></th></tr>
   {% for p in ja.positionen %}
   <tr>
     <td>
@@ -98,11 +101,18 @@ danach 7 Monate zu 385 €.</p>
         {% endfor %}
       </select>
     </td>
-    <td><input name="betrag" form="pos-edit-{{ p.id }}" value="{{ '%.2f'|format(p.betrag) }}" required></td>
+    <td><input name="betrag" form="pos-edit-{{ p.id }}" value="{{ p.betrag|de }}" required></td>
     <td>
       <select name="umlagefaehig" form="pos-edit-{{ p.id }}">
-        <option value="" {% if not p.umlagefaehig %}selected{% endif %}>Standard</option>
+        <option value="" {% if not p.umlagefaehig %}selected{% endif %}>{{ "ja (std)" if p.kostenart.umlagefaehig else "nein (std)" }}</option>
         <option value="1" {% if p.umlagefaehig %}selected{% endif %}>ja</option>
+      </select>
+    </td>
+    <td>
+      <select name="hv_abgerechnet" form="pos-edit-{{ p.id }}">
+        <option value="" {% if p.hv_abgerechnet is none %}selected{% endif %}>{{ "ja (std)" if p.kostenart.hv_abgerechnet else "nein (std)" }}</option>
+        <option value="1" {% if p.hv_abgerechnet == true %}selected{% endif %}>ja</option>
+        <option value="0" {% if p.hv_abgerechnet == false %}selected{% endif %}>nein</option>
       </select>
     </td>
     <td><input name="bemerkung" form="pos-edit-{{ p.id }}" value="{{ p.bemerkung or '' }}"></td>
@@ -116,14 +126,14 @@ danach 7 Monate zu 385 €.</p>
     </td>
   </tr>
   {% else %}
-  <tr><td colspan="5" class="muted">Noch keine Positionen erfasst.</td></tr>
+  <tr><td colspan="6" class="muted">Noch keine Positionen erfasst.</td></tr>
   {% endfor %}
   <tr>
-    <td colspan="2"><strong>Summe umlagefähig:</strong> {{ "%.2f"|format(ja.positionen|selectattr("umlagefaehig")|sum(attribute="betrag")) }} €</td>
-    <td colspan="3"><strong>Summe nicht umlagefähig:</strong> {{ "%.2f"|format(ja.positionen|rejectattr("umlagefaehig")|sum(attribute="betrag")) }} €</td>
+    <td colspan="2"><strong>Summe umlagefähig:</strong> {{ (ja.positionen|selectattr("umlagefaehig")|sum(attribute="betrag"))|de }}&nbsp;€</td>
+    <td colspan="4"><strong>Summe nicht umlagefähig:</strong> {{ (ja.positionen|rejectattr("umlagefaehig")|sum(attribute="betrag"))|de }}&nbsp;€</td>
   </tr>
   <tr>
-    <td colspan="5"><strong>Summe gesamt (zum Vergleich mit der Verwalterabrechnung):</strong> {{ "%.2f"|format(ja.positionen|sum(attribute="betrag")) }} €</td>
+    <td colspan="6"><strong>Summe gesamt (zum Vergleich mit der Verwalterabrechnung):</strong> {{ (ja.positionen|sum(attribute="betrag"))|de }}&nbsp;€</td>
   </tr>
   <tr>
     <td>
@@ -138,6 +148,13 @@ danach 7 Monate zu 385 €.</p>
       <select name="umlagefaehig" form="pos-form">
         <option value="">Standard</option>
         <option value="1">ja</option>
+      </select>
+    </td>
+    <td>
+      <select name="hv_abgerechnet" form="pos-form">
+        <option value="">Standard</option>
+        <option value="1">ja</option>
+        <option value="0">nein</option>
       </select>
     </td>
     <td><input name="bemerkung" form="pos-form"></td>
@@ -176,6 +193,20 @@ August werden als ein Block mit zusammen 40 Promille geführt.</p>
 </table>
 
 <h2 id="berechnung">Berechnung</h2>
+{% if wasser_warnungen %}
+<p>
+  <span class="badge warn">Achtung: {{ wasser_warnungen|join(", ") }}
+  – keine ausreichenden Zählerstände für den gesamten Zeitraum erfasst, wird zeitanteilig genähert
+  statt nach tatsächlichem Verbrauch (Zwischenablesung). Zähler unter „Wasserzähler“ am Objekt pflegen.</span>
+</p>
+{% endif %}
+{% if personentage_warnungen %}
+<p>
+  <span class="badge warn">Achtung: {{ personentage_warnungen|join(", ") }}
+  – nicht für alle im Zeitraum relevanten Mietverhältnisse ausreichende Personenzahl-Einträge erfasst,
+  wird zeitanteilig genähert statt nach Personenzahl. Einträge im jeweiligen Mietverhältnis pflegen.</span>
+</p>
+{% endif %}
 <p class="muted">
   {% if ja.berechnet_am %}
   Zuletzt berechnet am {{ ja.berechnet_am.strftime("%d.%m.%Y um %H:%M:%S") }} Uhr.
@@ -183,74 +214,108 @@ August werden als ein Block mit zusammen 40 Promille geführt.</p>
   Noch nicht berechnet.
   {% endif %}
 </p>
-<form method="post" action="/jahresabrechnungen/{{ ja.id }}/berechnen">
-  <button type="submit" class="btn">Verteilung (neu) berechnen</button>
-</form>
+<div class="row-actions">
+  <form method="post" action="/jahresabrechnungen/{{ ja.id }}/berechnen">
+    <button type="submit" class="btn">Verteilung (neu) berechnen</button>
+  </form>
+  <form method="post" action="/jahresabrechnungen/{{ ja.id }}/leeren"
+        onsubmit="return confirm('Berechnetes Ergebnis wirklich leeren? Die Abrechnungspositionen und Vorauszahlungen bleiben erhalten.');">
+    <button type="submit" class="danger">Ergebnis leeren</button>
+  </form>
+</div>
 
 <h2 id="pruefung">Prüfung gegen Hausverwalter-Abrechnung</h2>
 {% if pruefung %}
-<table>
-  <tr><th>Prüfung</th><th>Ist</th><th>Soll (HV)</th><th>Differenz</th><th></th></tr>
-  <tr>
-    <td>Summe aller Abrechnungspositionen</td>
-    <td>{{ "%.2f"|format(pruefung.positionen.ist) }} €</td>
-    <td>{{ "%.2f"|format(pruefung.positionen.soll) }} €</td>
-    <td>{{ "%.2f"|format(pruefung.positionen.differenz) }} €</td>
-    <td>
-      {% if pruefung.positionen.stimmt %}<span class="badge ok">stimmt überein</span>
-      {% else %}<span class="badge warn">Abweichung</span>{% endif %}
-    </td>
-  </tr>
-  <tr>
-    <td>Summe verteilt (Mieter + Leerstand) + nicht umlagefähige Positionen</td>
-    <td>{{ "%.2f"|format(pruefung.verteilung.ist) }} €</td>
-    <td>{{ "%.2f"|format(pruefung.verteilung.soll) }} €</td>
-    <td>{{ "%.2f"|format(pruefung.verteilung.differenz) }} €</td>
-    <td>
-      {% if pruefung.verteilung.stimmt %}<span class="badge ok">stimmt überein</span>
-      {% else %}<span class="badge warn">Abweichung</span>{% endif %}
-    </td>
-  </tr>
-</table>
-<p class="muted">Die zweite Prüfung ist nur aussagekräftig, wenn die Verteilung bereits berechnet wurde.</p>
+{% set hat_abweichung = not pruefung.positionen.stimmt or not pruefung.verteilung.stimmt %}
+<details {% if hat_abweichung %}open{% endif %}>
+  <summary>
+    {% if hat_abweichung %}
+    <span class="badge warn">Abweichung – bitte prüfen</span>
+    {% else %}
+    <span class="badge ok">stimmt überein</span>
+    {% endif %}
+  </summary>
+  <table>
+    <tr><th>Prüfung</th><th>Ist</th><th>Soll (HV)</th><th>Differenz</th><th></th></tr>
+    <tr>
+      <td>Summe aller Abrechnungspositionen</td>
+      <td>{{ pruefung.positionen.ist|de }}&nbsp;€</td>
+      <td>{{ pruefung.positionen.soll|de }}&nbsp;€</td>
+      <td>{{ pruefung.positionen.differenz|de }}&nbsp;€</td>
+      <td>
+        {% if pruefung.positionen.stimmt %}<span class="badge ok">stimmt überein</span>
+        {% else %}<span class="badge warn">Abweichung</span>{% endif %}
+      </td>
+    </tr>
+    <tr>
+      <td>Summe verteilt (Mieter + Leerstand) + nicht umlagefähige Positionen</td>
+      <td>{{ pruefung.verteilung.ist|de }}&nbsp;€</td>
+      <td>{{ pruefung.verteilung.soll|de }}&nbsp;€</td>
+      <td>{{ pruefung.verteilung.differenz|de }}&nbsp;€</td>
+      <td>
+        {% if pruefung.verteilung.stimmt %}<span class="badge ok">stimmt überein</span>
+        {% else %}<span class="badge warn">Abweichung</span>{% endif %}
+      </td>
+    </tr>
+  </table>
+  <p class="muted">Die zweite Prüfung ist nur aussagekräftig, wenn die Verteilung bereits berechnet wurde.</p>
+  {% if pruefung.ausgeschlossen %}
+  <p class="muted">Nicht in der Prüfung berücksichtigt (nicht HV-abgerechnet): {{ pruefung.ausgeschlossen|join(", ") }}.</p>
+  {% endif %}
+</details>
 {% else %}
 <p class="muted">Gesamtbetrag laut Hausverwalter-Abrechnung oben eintragen, um die Prüfung anzuzeigen.</p>
 {% endif %}
 
 {% if ja.mieterabrechnungen %}
 <h3>Ergebnis (chronologisch, inkl. Leerstand)</h3>
+{% set summe_umlagefaehig_hv = ja.positionen|selectattr("umlagefaehig")|sum(attribute="betrag") %}
 {% for ma in ja.mieterabrechnungen|sort(attribute="sortier_datum") %}
 <h4>
   {{ ma.titel }} ({{ ma.tage_im_zeitraum }} von {{ beleg.gesamttage }} Tagen)
-  {% if ma.ist_leerstand %}<span class="badge warn">Leerstand</span>{% endif %}
+  {% if ma.ist_leerstand %}<span class="badge warn">Leerstand</span>
+  {% else %}<a class="btn" href="/jahresabrechnungen/{{ ja.id }}/mieterabrechnungen/{{ ma.id }}/pdf">PDF-Anschreiben</a>{% endif %}
 </h4>
 <table>
   <tr><th>Kostenart</th><th>Anteil</th><th>Methode</th><th>Detail</th></tr>
   {% for pos in ma.positionen %}
   <tr>
     <td>{{ pos.kostenart.bezeichnung }}</td>
-    <td>{{ "%.2f"|format(pos.anteil_betrag) }} €</td>
+    <td>{{ pos.anteil_betrag|de }}&nbsp;€</td>
     <td>{{ pos.berechnungsmethode }}</td>
     <td>{{ pos.berechnungsdetail }}</td>
   </tr>
   {% endfor %}
   {% if ma.ist_leerstand %}
-  <tr><td><strong>Kosten, die beim Eigentümer verbleiben</strong></td><td colspan="3"><strong>{{ "%.2f"|format(ma.summe_umlagefaehig) }} €</strong></td></tr>
+  <tr><td><strong>Kosten, die beim Eigentümer verbleiben</strong></td><td colspan="3"><strong>{{ ma.summe_umlagefaehig|de }}&nbsp;€</strong></td></tr>
   {% else %}
-  <tr><td><strong>Summe umlagefähige Kosten</strong></td><td colspan="3"><strong>{{ "%.2f"|format(ma.summe_umlagefaehig) }} €</strong></td></tr>
-  <tr><td>Summe Vorauszahlungen</td><td colspan="3">{{ "%.2f"|format(ma.summe_vorauszahlung) }} €</td></tr>
+  <tr><td><strong>Summe umlagefähige Kosten</strong></td><td colspan="3"><strong>{{ ma.summe_umlagefaehig|de }}&nbsp;€</strong></td></tr>
+  <tr><td>Summe Vorauszahlungen</td><td colspan="3">{{ ma.summe_vorauszahlung|de }}&nbsp;€</td></tr>
   <tr>
     <td><strong>{% if ma.differenz >= 0 %}Nachzahlung{% else %}Guthaben{% endif %}</strong></td>
     <td colspan="3">
       <strong class="{% if ma.differenz >= 0 %}badge warn{% else %}badge ok{% endif %}">
-        {{ "%.2f"|format(ma.differenz|abs) }} €
+        {{ (ma.differenz|abs)|de }}&nbsp;€
       </strong>
     </td>
   </tr>
+  {% if ma.laeuft_ueber_jahresende_hinaus %}
+  <tr>
+    <td>Zuletzt bezahlter monatlicher NK-Abschlag</td>
+    <td colspan="3">{{ (ma.mietverhaeltnis.nk_abschlag_monatlich|de ~ "&nbsp;€")|safe if ma.mietverhaeltnis.nk_abschlag_monatlich is not none else "–" }}</td>
+  </tr>
+  <tr>
+    <td>Neu berechneter Abschlag (Summe umlagefähig HV / 12 Monate)</td>
+    <td colspan="3">{{ (summe_umlagefaehig_hv / 12)|de }}&nbsp;€</td>
+  </tr>
+  {% endif %}
   {% endif %}
 </table>
 {% endfor %}
-<p><a class="btn" href="/jahresabrechnungen/{{ ja.id }}/export.csv">Ergebnis als CSV exportieren</a></p>
+<p>
+  <a class="btn" href="/jahresabrechnungen/{{ ja.id }}/export.csv">Ergebnis als CSV exportieren</a>
+  <a class="btn" href="/jahresabrechnungen/{{ ja.id }}/pdf">Alle Anschreiben als PDF (Sammel-Download)</a>
+</p>
 {% endif %}
 
 <form method="post" action="/jahresabrechnungen/{{ ja.id }}/loeschen"

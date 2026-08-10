@@ -23,6 +23,28 @@ Neu: Objekte und Verwaltungen lassen sich jetzt nachträglich bearbeiten (Formul
 auf der jeweiligen Detailseite), und bei Verwaltungen wird jede Änderung mit
 Zeitstempel protokolliert (sichtbar unten auf der Verwaltungs-Detailseite).
 
+## Datenbank-Schema ändern (Alembic-Migrationen)
+
+Seit Einführung von Alembic muss bei Änderungen am Datenmodell (`app/models.py`)
+**nicht mehr** `data/nebenkosten.db` gelöscht werden. Stattdessen:
+
+1. `app/models.py` wie gewünscht ändern.
+2. Lokal eine Migration generieren lassen:
+   ```bash
+   NK_DATA_DIR=./data alembic revision --autogenerate -m "kurze beschreibung"
+   ```
+   Das erzeugte Skript unter `alembic/versions/` kurz prüfen (bei SQLite
+   übernimmt Alembic automatisch den nötigen Tabellen-Neubau im Hintergrund,
+   sichtbar als `with op.batch_alter_table(...)`).
+3. Migration lokal testen (App einfach neu starten – siehe unten).
+4. Migrationsskript zusammen mit der Modelländerung committen/deployen.
+
+Beim Start der App (lokal wie im Docker-Container) wendet `app/migrate.py`
+automatisch alle noch ausstehenden Migrationen an – vorher wird die
+SQLite-Datei automatisch als `nebenkosten.db.backup-<Zeitstempel>` gesichert.
+Ein manuelles Löschen der Datenbank ist damit auch beim Produktiv-Deployment
+auf dem NAS nicht mehr nötig; ein einfacher Neustart des Containers genügt.
+
 ## Was Schritt 1 kann
 
 - Stammdaten: Verwaltungen, Objekte (Adresse, Flurstück, Wohnfläche, Miteigentumsanteil,

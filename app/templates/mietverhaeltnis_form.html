@@ -26,8 +26,21 @@
     <div><label>Auszug (leer = aktuell)</label>
       <input name="auszug" type="date" value="{{ mv.auszug if mv and mv.auszug else '' }}"></div>
   </div>
+  <label>Zuletzt bezahlter monatlicher Nebenkostenabschlag</label>
+  <input name="nk_abschlag_monatlich"
+         value="{{ (mv.nk_abschlag_monatlich|de) if mv and mv.nk_abschlag_monatlich is not none else '' }}"
+         placeholder="z.B. 185,00">
+
+  <label><input type="checkbox" name="umsatzsteuerpflichtig" value="1"
+         {% if mv and mv.umsatzsteuerpflichtig %}checked{% endif %}
+         style="width:auto;display:inline"> Nebenkosten zzgl. Mehrwertsteuer (gewerbliche Vermietung mit
+  Umsatzsteueroption) – Vorauszahlung gilt dann als bereits inkl. MwSt. geleistet</label>
+  <label>MwSt.-Satz (%)</label>
+  <input name="mwst_satz" style="max-width:120px"
+         value="{{ (mv.mwst_satz|de(1)) if mv and mv.mwst_satz is not none else '19,0' }}">
+
   <label>Notizen zum Mietverhältnis</label>
-  <textarea name="notizen" rows="2">{{ mv.notizen if mv else '' }}</textarea>
+  <textarea name="notizen" rows="2">{{ (mv.notizen or '') if mv else '' }}</textarea>
 
   <h3 style="margin-top:1.5rem;">Personen</h3>
   <p class="muted">Bei einer Wohngemeinschaft beliebig viele Personen hinzufügen.</p>
@@ -55,29 +68,29 @@
       </div>
       <div class="grid-2">
         <div><label>E-Mail</label>
-          <input name="person_email" type="email" value="{{ person.email if person else '' }}"></div>
+          <input name="person_email" type="text" value="{{ (person.email or '') if person else '' }}"></div>
         <div><label>Telefon</label>
-          <input name="person_telefon" value="{{ person.telefon if person else '' }}"></div>
+          <input name="person_telefon" value="{{ (person.telefon or '') if person else '' }}"></div>
       </div>
       <p class="muted" style="margin-bottom:0.2rem;">Adresse vor Mietverhältnis</p>
       <div class="grid-2">
         <div><label>Straße</label>
-          <input name="person_adresse_vor_strasse" value="{{ person.adresse_vor_strasse if person else '' }}"></div>
+          <input name="person_adresse_vor_strasse" value="{{ (person.adresse_vor_strasse or '') if person else '' }}"></div>
         <div><label>PLZ / Ort</label>
           <div style="display:flex; gap:0.5rem;">
-            <input name="person_adresse_vor_plz" value="{{ person.adresse_vor_plz if person else '' }}" style="max-width:100px">
-            <input name="person_adresse_vor_ort" value="{{ person.adresse_vor_ort if person else '' }}">
+            <input name="person_adresse_vor_plz" value="{{ (person.adresse_vor_plz or '') if person else '' }}" style="max-width:100px">
+            <input name="person_adresse_vor_ort" value="{{ (person.adresse_vor_ort or '') if person else '' }}">
           </div>
         </div>
       </div>
       <p class="muted" style="margin-bottom:0.2rem;">Adresse nach Mietverhältnis</p>
       <div class="grid-2">
         <div><label>Straße</label>
-          <input name="person_adresse_nach_strasse" value="{{ person.adresse_nach_strasse if person else '' }}"></div>
+          <input name="person_adresse_nach_strasse" value="{{ (person.adresse_nach_strasse or '') if person else '' }}"></div>
         <div><label>PLZ / Ort</label>
           <div style="display:flex; gap:0.5rem;">
-            <input name="person_adresse_nach_plz" value="{{ person.adresse_nach_plz if person else '' }}" style="max-width:100px">
-            <input name="person_adresse_nach_ort" value="{{ person.adresse_nach_ort if person else '' }}">
+            <input name="person_adresse_nach_plz" value="{{ (person.adresse_nach_plz or '') if person else '' }}" style="max-width:100px">
+            <input name="person_adresse_nach_ort" value="{{ (person.adresse_nach_ort or '') if person else '' }}">
           </div>
         </div>
       </div>
@@ -113,7 +126,7 @@
       <div><label>Nachname</label><input name="person_nachname"></div>
     </div>
     <div class="grid-2">
-      <div><label>E-Mail</label><input name="person_email" type="email"></div>
+      <div><label>E-Mail</label><input name="person_email" type="text"></div>
       <div><label>Telefon</label><input name="person_telefon"></div>
     </div>
     <p class="muted" style="margin-bottom:0.2rem;">Adresse vor Mietverhältnis</p>
@@ -173,8 +186,41 @@ function adresseVonErsterPersonUebernehmen(button) {
 </script>
 
 {% if mv %}
+<h2 id="personenzahl" style="margin-top:1.5rem;">Anzahl Personen im Haushalt</h2>
+<p class="muted">Wird für Kostenarten mit Verteilmethode "Personentage" benötigt (z.B. Müllabfuhr).
+Bei Änderungen (Kind, Mitbewohner) einen neuen Eintrag ab dem jeweiligen Datum anlegen – der bisherige
+Eintrag muss nicht angepasst werden, er gilt automatisch bis zum neuen Datum.</p>
+<table>
+  <tr><th>Ab</th><th>Anzahl Personen</th><th></th></tr>
+  {% for pz in mv.personenzahlen|sort(attribute="ab_datum") %}
+  <tr>
+    <td><input name="ab_datum" type="date" form="pz-edit-{{ pz.id }}" value="{{ pz.ab_datum }}" required></td>
+    <td><input name="anzahl_personen" type="number" min="0" form="pz-edit-{{ pz.id }}" value="{{ pz.anzahl_personen }}" required></td>
+    <td>
+      <div class="row-actions">
+        <button type="submit" form="pz-edit-{{ pz.id }}" class="btn">Speichern</button>
+        <form class="inline" method="post" action="/personenzahl/{{ pz.id }}/loeschen">
+          <button type="submit" class="danger">Löschen</button>
+        </form>
+      </div>
+    </td>
+  </tr>
+  {% else %}
+  <tr><td colspan="3" class="muted">Noch keine Einträge – es wird zeitanteilig genähert.</td></tr>
+  {% endfor %}
+  <tr>
+    <td><input name="ab_datum" type="date" form="pz-form" required></td>
+    <td><input name="anzahl_personen" type="number" min="0" form="pz-form" required placeholder="z.B. 2"></td>
+    <td><button type="submit" form="pz-form" class="btn">+ Hinzufügen</button></td>
+  </tr>
+</table>
+{% for pz in mv.personenzahlen %}
+<form id="pz-edit-{{ pz.id }}" method="post" action="/personenzahl/{{ pz.id }}/bearbeiten"></form>
+{% endfor %}
+<form id="pz-form" method="post" action="/mietverhaeltnisse/{{ mv.id }}/personenzahl/neu"></form>
+
 <form method="post" action="/mietverhaeltnisse/{{ mv.id }}/loeschen"
-      onsubmit="return confirm('Mietverhältnis wirklich löschen?');">
+      onsubmit="return confirm('Mietverhältnis wirklich löschen?');" style="margin-top:1.5rem;">
   <button type="submit" class="danger">Mietverhältnis löschen</button>
 </form>
 {% endif %}

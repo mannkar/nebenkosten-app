@@ -4,6 +4,29 @@
 <h1>Jahresabrechnungen</h1>
 <p class="muted">Der Jahr-Filter bezieht sich auf das Ende des Abrechnungszeitraums.</p>
 
+<details style="margin-bottom:1rem;">
+  <summary><strong>+ Neue Jahresabrechnung anlegen</strong></summary>
+  <form class="card" method="post" action="/jahresabrechnungen/neu">
+    <label>Objekt</label>
+    <select name="objekt_id" required>
+      <option value="">– bitte wählen –</option>
+      {% for o in objekte %}
+      <option value="{{ o.id }}">{{ o.bezeichnung }}</option>
+      {% endfor %}
+    </select>
+    <label>Jahr</label>
+    <input name="jahr" type="number" required placeholder="z.B. 2025">
+    <p class="muted" style="margin-top:0.2rem;">Der Zeitraum ergibt sich automatisch aus dem am
+    jeweiligen Objekt hinterlegten Beginn des Abrechnungsjahres.</p>
+    <label>Von Verwaltung erhalten am</label>
+    <input name="erhalten_am" type="date">
+    <label><input type="checkbox" name="vorjahr_uebernehmen" value="1" checked
+           style="width:auto;display:inline"> Abrechnungspositionen &amp; Vorauszahlungen vom
+      Vorjahr als Startwert übernehmen (zum Anpassen), falls vorhanden</label>
+    <button type="submit">Jahresabrechnung anlegen</button>
+  </form>
+</details>
+
 <form method="get" action="/jahresabrechnungen" style="margin-bottom:1rem;">
   <label style="font-weight:600; font-size:0.85rem;">Objekt</label>
   <select name="objekt_id" onchange="this.form.submit();">

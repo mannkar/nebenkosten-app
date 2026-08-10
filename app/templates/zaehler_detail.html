@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Zähler {{ zaehler.typ }}{% endblock %}
+{% block content %}
+<p><a href="/objekte/{{ zaehler.objekt.id }}#zaehler">&larr; {{ zaehler.objekt.bezeichnung }}</a></p>
+<h1>{{ zaehler.typ }}{% if zaehler.bezeichnung %} – {{ zaehler.bezeichnung }}{% endif %}</h1>
+<p class="muted">
+  {% if zaehler.zaehlernummer %}Zählernummer {{ zaehler.zaehlernummer }} · {% endif %}
+  Einbau {{ zaehler.einbaudatum or "-" }} ·
+  Ausbau {{ zaehler.ausbaudatum or "aktuell verbaut" }}
+</p>
+
+<h2>Ablesungen</h2>
+<p class="muted">Bei Mieterwechsel den tatsächlichen Zählerstand am Auszugs-/Einzugstag als
+"Zwischenablesung" erfassen – nur damit kann der Verbrauch exakt (statt zeitanteilig genähert)
+aufgeteilt werden.</p>
+<table>
+  <tr><th>Datum</th><th>Zählerstand</th><th>Anlass</th><th></th></tr>
+  {% for a in zaehler.ablesungen %}
+  <tr>
+    <td><input name="datum" form="ablesung-edit-{{ a.id }}" type="date" value="{{ a.datum }}" required></td>
+    <td><input name="stand" form="ablesung-edit-{{ a.id }}" value="{{ a.stand|de(3) }}" required></td>
+    <td>
+      <select name="anlass" form="ablesung-edit-{{ a.id }}">
+        <option value="Jahresablesung" {% if a.anlass == "Jahresablesung" %}selected{% endif %}>Jahresablesung</option>
+        <option value="Zwischenablesung" {% if a.anlass == "Zwischenablesung" %}selected{% endif %}>Zwischenablesung (Mieterwechsel)</option>
+        <option value="Einbau" {% if a.anlass == "Einbau" %}selected{% endif %}>Einbau</option>
+        <option value="Ausbau" {% if a.anlass == "Ausbau" %}selected{% endif %}>Ausbau</option>
+      </select>
+    </td>
+    <td>
+      <div class="row-actions">
+        <button type="submit" form="ablesung-edit-{{ a.id }}" class="btn">Speichern</button>
+        <form class="inline" method="post" action="/zaehlerstaende/{{ a.id }}/loeschen">
+          <button type="submit" class="danger">Löschen</button>
+        </form>
+      </div>
+    </td>
+  </tr>
+  {% else %}
+  <tr><td colspan="4" class="muted">Noch keine Ablesungen erfasst.</td></tr>
+  {% endfor %}
+  <tr>
+    <td><input name="datum" form="ablesung-form" type="date" required></td>
+    <td><input name="stand" form="ablesung-form" placeholder="z.B. 1234,5" required></td>
+    <td>
+      <select name="anlass" form="ablesung-form">
+        <option value="Jahresablesung">Jahresablesung</option>
+        <option value="Zwischenablesung">Zwischenablesung (Mieterwechsel)</option>
+        <option value="Einbau">Einbau</option>
+        <option value="Ausbau">Ausbau</option>
+      </select>
+    </td>
+    <td><button type="submit" form="ablesung-form" class="btn">+ Hinzufügen</button></td>
+  </tr>
+</table>
+{% for a in zaehler.ablesungen %}
+<form id="ablesung-edit-{{ a.id }}" method="post" action="/zaehlerstaende/{{ a.id }}/bearbeiten"></form>
+{% endfor %}
+<form id="ablesung-form" method="post" action="/zaehler/{{ zaehler.id }}/ablesungen/neu"></form>
+{% endblock %}
