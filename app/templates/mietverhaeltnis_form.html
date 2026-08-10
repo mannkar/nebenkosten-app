@@ -39,6 +39,32 @@
   <input name="mwst_satz" style="max-width:120px"
          value="{{ (mv.mwst_satz|de(1)) if mv and mv.mwst_satz is not none else '19,0' }}">
 
+  <label><input type="checkbox" name="ist_firma" value="1"
+         {% if mv and mv.ist_firma %}checked{% endif %}
+         style="width:auto;display:inline"> Mieter ist Firma (gewerblich)</label>
+  <label>Firmenname</label>
+  <input name="firma_name" value="{{ (mv.firma_name or '') if mv else '' }}"
+         placeholder="z.B. Musterfirma GmbH">
+  <p class="muted" style="margin-top:0.2rem;">Wird im PDF-Anschreiben statt der Personennamen als
+  Anschrift verwendet; ist genau eine Person hinterlegt, wird darunter automatisch "z. Hd. ..."
+  ergänzt.</p>
+
+  <label><input type="checkbox" name="nk_rechnungsadresse_abweichend" value="1"
+         {% if mv and mv.nk_rechnungsadresse_abweichend %}checked{% endif %}
+         style="width:auto;display:inline"> Abweichende Rechnungsadresse für die Nebenkostenabrechnung</label>
+  <label>Name (z.B. Verwaltung/Buchhaltung)</label>
+  <input name="nk_rechnungsadresse_name" value="{{ (mv.nk_rechnungsadresse_name or '') if mv else '' }}">
+  <div class="grid-2">
+    <div><label>Straße</label>
+      <input name="nk_rechnungsadresse_strasse" value="{{ (mv.nk_rechnungsadresse_strasse or '') if mv else '' }}"></div>
+    <div><label>PLZ / Ort</label>
+      <div style="display:flex; gap:0.5rem;">
+        <input name="nk_rechnungsadresse_plz" value="{{ (mv.nk_rechnungsadresse_plz or '') if mv else '' }}" style="max-width:100px">
+        <input name="nk_rechnungsadresse_ort" value="{{ (mv.nk_rechnungsadresse_ort or '') if mv else '' }}">
+      </div>
+    </div>
+  </div>
+
   <label>Notizen zum Mietverhältnis</label>
   <textarea name="notizen" rows="2">{{ (mv.notizen or '') if mv else '' }}</textarea>
 

@@ -83,26 +83,40 @@ def _abrechnungsart_label(berechnungsmethode: str) -> str:
     return berechnungsmethode
 
 
-def _empfaenger_namenzeile(mv: models.Mietverhaeltnis) -> str:
-    """Eine Zeile mit allen Namen des Mietverhaeltnisses (WG etc.), z.B.
-    'Frau A und Herr B'."""
+def _empfaenger_namen_zeilen(mv: models.Mietverhaeltnis) -> list[str]:
+    """Ein oder zwei Zeilen mit dem Namen des Empfaengers. Bei Privatpersonen
+    alle Namen des Mietverhaeltnisses (WG etc.) in einer Zeile, z.B. 'Frau A
+    und Herr B'. Bei einer Firma steht der Firmenname in Zeile 1, darunter
+    als zweite Zeile 'z. Hd. ...' mit der hinterlegten Ansprechperson,
+    sofern genau eine Person erfasst ist."""
+    if mv.ist_firma:
+        zeilen = [mv.firma_name or "Firma"]
+        if len(mv.personen) == 1:
+            p = mv.personen[0]
+            praefix = f"{p.anrede} " if p.anrede else ""
+            zeilen.append(f"z. Hd. {praefix}{p.vorname} {p.nachname}".strip())
+        return zeilen
+
     namen = []
     for p in mv.personen:
         praefix = f"{p.anrede} " if p.anrede else ""
         namen.append(f"{praefix}{p.vorname} {p.nachname}".strip())
     if not namen:
-        return "Mieter"
+        return ["Mieter"]
     if len(namen) == 1:
-        return namen[0]
-    return ", ".join(namen[:-1]) + " und " + namen[-1]
+        return [namen[0]]
+    return [", ".join(namen[:-1]) + " und " + namen[-1]]
 
 
 def _anrede_zeile(mv: models.Mietverhaeltnis) -> str:
     """Persoenliche Briefanrede, z.B. 'Sehr geehrter Herr Mustermann,' bzw.
     fuer mehrere Personen 'Sehr geehrte Frau A und Herr B,'. Ohne erfasste
-    Anrede wird eine neutrale Form verwendet."""
+    Anrede wird eine neutrale Form verwendet. Bei einer Firma nur dann
+    persoenlich (an die im Adressfeld als 'z. Hd.' genannte Ansprechperson),
+    wenn genau eine Person hinterlegt ist - sonst die uebliche geschaeftliche
+    Form."""
     personen = mv.personen
-    if not personen:
+    if not personen or (mv.ist_firma and len(personen) != 1):
         return "Sehr geehrte Damen und Herren,"
     if len(personen) == 1:
         p = personen[0]
@@ -135,25 +149,58 @@ def _mietverhaeltnis_zeitraum(ja: models.Jahresabrechnung, mv: models.Mietverhae
     return von, bis
 
 
-def _empfaenger_adresse(mv: models.Mietverhaeltnis, objekt: models.Objekt, heute: date):
-    """Postanschrift fuer den Brief: solange das Mietverhaeltnis noch laeuft
-    (kein Auszug oder Auszug in der Zukunft), die Adresse der Wohnung selbst
-    (Objekt); nach dem Auszug die hinterlegte Nachsendeadresse der ersten
-    Person (mit Fallback auf die Objektadresse, falls keine erfasst ist)."""
-    ausgezogen = mv.auszug is not None and mv.auszug <= heute
-    if ausgezogen and mv.personen:
-        p = mv.personen[0]
-        if p.adresse_nach_strasse or p.adresse_nach_plz or p.adresse_nach_ort:
-            return {
-                "strasse": p.adresse_nach_strasse or "",
-                "plz": p.adresse_nach_plz or "",
-                "ort": p.adresse_nach_ort or "",
+def _empfaenger_zeilen(mv: models.Mietverhaeltnis, objekt: models.Objekt, heute: date) -> list[str]:
+    """Alle Zeilen des Anschriftenfelds im Brief (Name(n) gefolgt von Straße
+    und PLZ/Ort). Prioritaet der Adresse:
+    1. Abweichende Rechnungsadresse fuer die Nebenkostenabrechnung, falls am
+       Mietverhaeltnis hinterlegt (z.B. Verwaltung/Buchhaltung) - ist dabei
+       auch ein eigener Name hinterlegt, ersetzt der die sonstige
+       Namenszeile (Firma/Personen) komplett.
+    2. Solange das Mietverhaeltnis noch laeuft (kein Auszug oder Auszug in
+       der Zukunft): die Adresse der Wohnung selbst (Objekt).
+    3. Nach dem Auszug: die hinterlegte Nachsendeadresse der ersten Person
+       (mit Fallback auf die Objektadresse, falls keine erfasst ist)."""
+    rechnungsadresse_aktiv = mv.nk_rechnungsadresse_abweichend and (
+        mv.nk_rechnungsadresse_strasse or mv.nk_rechnungsadresse_plz
+        or mv.nk_rechnungsadresse_ort or mv.nk_rechnungsadresse_name
+    )
+
+    if rechnungsadresse_aktiv and mv.nk_rechnungsadresse_name:
+        namen_zeilen = [mv.nk_rechnungsadresse_name]
+    else:
+        namen_zeilen = _empfaenger_namen_zeilen(mv)
+
+    if rechnungsadresse_aktiv:
+        adresse = {
+            "strasse": mv.nk_rechnungsadresse_strasse or "",
+            "plz": mv.nk_rechnungsadresse_plz or "",
+            "ort": mv.nk_rechnungsadresse_ort or "",
+        }
+    else:
+        adresse = None
+        ausgezogen = mv.auszug is not None and mv.auszug <= heute
+        if ausgezogen and mv.personen:
+            p = mv.personen[0]
+            if p.adresse_nach_strasse or p.adresse_nach_plz or p.adresse_nach_ort:
+                adresse = {
+                    "strasse": p.adresse_nach_strasse or "",
+                    "plz": p.adresse_nach_plz or "",
+                    "ort": p.adresse_nach_ort or "",
+                }
+        if adresse is None:
+            adresse = {
+                "strasse": objekt.strasse or "",
+                "plz": objekt.plz or "",
+                "ort": objekt.ort or "",
             }
-    return {
-        "strasse": objekt.strasse or "",
-        "plz": objekt.plz or "",
-        "ort": objekt.ort or "",
-    }
+
+    zeilen = list(namen_zeilen)
+    if adresse["strasse"]:
+        zeilen.append(adresse["strasse"])
+    plz_ort = f"{adresse['plz']} {adresse['ort']}".strip()
+    if plz_ort:
+        zeilen.append(plz_ort)
+    return zeilen
 
 
 def _footer(canvas, doc, objekt: models.Objekt):
@@ -208,15 +255,7 @@ def _brief_story(ja: models.Jahresabrechnung, ma: models.Mieterabrechnung, heute
         story.append(Paragraph(", ".join(ruecksende_teile), _SMALL_UNDERLINE))
         story.append(Spacer(1, 3 * mm))
 
-    empfaenger_adresse = _empfaenger_adresse(mv, objekt, heute)
-    empfaenger_zeilen = [_empfaenger_namenzeile(mv)]
-    if empfaenger_adresse["strasse"]:
-        empfaenger_zeilen.append(empfaenger_adresse["strasse"])
-    plz_ort = f"{empfaenger_adresse['plz']} {empfaenger_adresse['ort']}".strip()
-    if plz_ort:
-        empfaenger_zeilen.append(plz_ort)
-
-    for zeile in empfaenger_zeilen:
+    for zeile in _empfaenger_zeilen(mv, objekt, heute):
         story.append(Paragraph(zeile, _NORMAL))
     story.append(Spacer(1, 6 * mm))
 
@@ -298,16 +337,16 @@ def _brief_story(ja: models.Jahresabrechnung, ma: models.Mieterabrechnung, heute
         Paragraph(f"{format_de(nebenkosten_netto)} €", _CELL_RIGHT),
     ]]
 
+    # mwst_betrag/gesamtbetrag kommen bewusst aus der Mieterabrechnung-Model-
+    # Property (nicht hier neu berechnet), damit PDF und App-Ergebnisanzeige
+    # niemals auseinanderlaufen koennen.
     if mv.umsatzsteuerpflichtig:
         satz = mv.mwst_satz if mv.mwst_satz is not None else 19.0
-        mwst_betrag = round(nebenkosten_netto * satz / 100, 2)
-        gesamtbetrag = round(nebenkosten_netto + mwst_betrag, 2)
         zusammenfassung_rows.append([
             Paragraph(f"zzgl. {format_de(satz, 1)}% MwSt.", _CELL),
-            Paragraph(f"{format_de(mwst_betrag)} €", _CELL_RIGHT),
+            Paragraph(f"{format_de(ma.mwst_betrag)} €", _CELL_RIGHT),
         ])
-    else:
-        gesamtbetrag = nebenkosten_netto
+    gesamtbetrag = ma.gesamtbetrag
 
     zusammenfassung_rows.append([
         Paragraph("Gesamtbetrag", _CELL_BOLD),

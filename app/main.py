@@ -478,6 +478,13 @@ async def mietverhaeltnis_neu(
     nk_abschlag_monatlich: str = Form(""),
     umsatzsteuerpflichtig: str = Form(""),
     mwst_satz: str = Form(""),
+    ist_firma: str = Form(""),
+    firma_name: str = Form(""),
+    nk_rechnungsadresse_abweichend: str = Form(""),
+    nk_rechnungsadresse_name: str = Form(""),
+    nk_rechnungsadresse_strasse: str = Form(""),
+    nk_rechnungsadresse_plz: str = Form(""),
+    nk_rechnungsadresse_ort: str = Form(""),
     notizen: str = Form(""),
     altes_mv_id: str = Form(""),
     altes_mv_auszug: str = Form(""),
@@ -493,6 +500,13 @@ async def mietverhaeltnis_neu(
         ),
         umsatzsteuerpflichtig=bool(umsatzsteuerpflichtig),
         mwst_satz=float(mwst_satz.replace(",", ".")) if mwst_satz else 19.0,
+        ist_firma=bool(ist_firma),
+        firma_name=firma_name or None,
+        nk_rechnungsadresse_abweichend=bool(nk_rechnungsadresse_abweichend),
+        nk_rechnungsadresse_name=nk_rechnungsadresse_name or None,
+        nk_rechnungsadresse_strasse=nk_rechnungsadresse_strasse or None,
+        nk_rechnungsadresse_plz=nk_rechnungsadresse_plz or None,
+        nk_rechnungsadresse_ort=nk_rechnungsadresse_ort or None,
         notizen=notizen,
     )
     db.add(mv)
@@ -539,6 +553,13 @@ async def mietverhaeltnis_bearbeiten(
     nk_abschlag_monatlich: str = Form(""),
     umsatzsteuerpflichtig: str = Form(""),
     mwst_satz: str = Form(""),
+    ist_firma: str = Form(""),
+    firma_name: str = Form(""),
+    nk_rechnungsadresse_abweichend: str = Form(""),
+    nk_rechnungsadresse_name: str = Form(""),
+    nk_rechnungsadresse_strasse: str = Form(""),
+    nk_rechnungsadresse_plz: str = Form(""),
+    nk_rechnungsadresse_ort: str = Form(""),
     notizen: str = Form(""),
     db: Session = Depends(get_db),
 ):
@@ -551,6 +572,13 @@ async def mietverhaeltnis_bearbeiten(
     )
     mv.umsatzsteuerpflichtig = bool(umsatzsteuerpflichtig)
     mv.mwst_satz = float(mwst_satz.replace(",", ".")) if mwst_satz else 19.0
+    mv.ist_firma = bool(ist_firma)
+    mv.firma_name = firma_name or None
+    mv.nk_rechnungsadresse_abweichend = bool(nk_rechnungsadresse_abweichend)
+    mv.nk_rechnungsadresse_name = nk_rechnungsadresse_name or None
+    mv.nk_rechnungsadresse_strasse = nk_rechnungsadresse_strasse or None
+    mv.nk_rechnungsadresse_plz = nk_rechnungsadresse_plz or None
+    mv.nk_rechnungsadresse_ort = nk_rechnungsadresse_ort or None
     mv.notizen = notizen
     for alte_person in list(mv.personen):
         db.delete(alte_person)
@@ -1051,6 +1079,17 @@ def export_ergebnis(ja_id: int, db: Session = Depends(get_db)):
             ma.anzeige_von, ma.anzeige_bis or "", ma.tage_im_zeitraum,
             "Summe umlagefähige Kosten", ma.summe_umlagefaehig, "", "",
         ])
+        if ma.mietverhaeltnis.umsatzsteuerpflichtig:
+            writer.writerow([
+                ja.objekt.bezeichnung, ja.jahr, name,
+                ma.anzeige_von, ma.anzeige_bis or "", ma.tage_im_zeitraum,
+                "MwSt.", ma.mwst_betrag, "", "",
+            ])
+            writer.writerow([
+                ja.objekt.bezeichnung, ja.jahr, name,
+                ma.anzeige_von, ma.anzeige_bis or "", ma.tage_im_zeitraum,
+                "Gesamtbetrag", ma.gesamtbetrag, "", "",
+            ])
         writer.writerow([
             ja.objekt.bezeichnung, ja.jahr, name,
             ma.anzeige_von, ma.anzeige_bis or "", ma.tage_im_zeitraum,

@@ -317,15 +317,25 @@ def _verteile_positionen(db: Session, mieterabrechnung: models.Mieterabrechnung,
                             f"Einheiten (Zählerstände)"
                         )
             if anteil_faktor is None:
-                # Keine oder unvollstaendige Zaehlerdaten fuer diesen Zeitraum
-                # - zeitanteilig naehern, aber sichtbar als Naeherung
-                # kennzeichnen statt es wie "zeitanteilig" aussehen zu lassen.
                 anteil_faktor = tage / gesamttage
-                methode = "zeitanteilig (Näherung)"
-                detail = (
-                    f"{tage}/{gesamttage} Tage – keine ausreichenden "
-                    f"Zählerstände, zeitanteilig genähert statt Zwischenablesung"
-                )
+                if tage == gesamttage:
+                    # Diese eine Abrechnung deckt den kompletten Zeitraum
+                    # allein ab (kein Mieterwechsel, kein Leerstand) - der
+                    # volle Betrag geht ohnehin zu 100% hierher, unabhaengig
+                    # von der Verteilmethode. Zaehlerstaende sind in diesem
+                    # Fall nicht erforderlich, daher keine Naeherung/Warnung.
+                    methode = "zeitanteilig"
+                    detail = f"{tage}/{gesamttage} Tage – einziger Zeitraum, keine Aufteilung nötig"
+                else:
+                    # Keine oder unvollstaendige Zaehlerdaten fuer diesen
+                    # Zeitraum - zeitanteilig naehern, aber sichtbar als
+                    # Naeherung kennzeichnen statt es wie "zeitanteilig"
+                    # aussehen zu lassen.
+                    methode = "zeitanteilig (Näherung)"
+                    detail = (
+                        f"{tage}/{gesamttage} Tage – keine ausreichenden "
+                        f"Zählerstände, zeitanteilig genähert statt Zwischenablesung"
+                    )
         elif methode_kostenart == "personentage":
             anteil_faktor = None
             if personentage_gesamt_ok and personentage_gesamt > 0:
@@ -343,14 +353,23 @@ def _verteile_positionen(db: Session, mieterabrechnung: models.Mieterabrechnung,
                         f"Personentage"
                     )
             if anteil_faktor is None:
-                # Keine oder unvollstaendige Personenzahl-Eintraege - zeitanteilig
-                # naehern, aber sichtbar als Naeherung kennzeichnen.
                 anteil_faktor = tage / gesamttage
-                methode = "zeitanteilig (Näherung)"
-                detail = (
-                    f"{tage}/{gesamttage} Tage – keine ausreichenden "
-                    f"Personenzahl-Einträge, zeitanteilig genähert statt nach Personenzahl"
-                )
+                if tage == gesamttage:
+                    # Siehe Kommentar bei "zwischenablesung_wasser" oben:
+                    # einziger Zeitraum der Abrechnung -> 100% ohnehin
+                    # unabhaengig von der Verteilmethode, keine
+                    # Personenzahl-Eintraege noetig.
+                    methode = "zeitanteilig"
+                    detail = f"{tage}/{gesamttage} Tage – einziger Zeitraum, keine Aufteilung nötig"
+                else:
+                    # Keine oder unvollstaendige Personenzahl-Eintraege -
+                    # zeitanteilig naehern, aber sichtbar als Naeherung
+                    # kennzeichnen.
+                    methode = "zeitanteilig (Näherung)"
+                    detail = (
+                        f"{tage}/{gesamttage} Tage – keine ausreichenden "
+                        f"Personenzahl-Einträge, zeitanteilig genähert statt nach Personenzahl"
+                    )
         else:
             anteil_faktor = tage / gesamttage
             methode = "zeitanteilig"
@@ -368,12 +387,27 @@ def _verteile_positionen(db: Session, mieterabrechnung: models.Mieterabrechnung,
     return summe
 
 
+def _kein_verteilungsbedarf(jahresabrechnung: models.Jahresabrechnung) -> bool:
+    """True, wenn ueber den gesamten Abrechnungszeitraum durchgehend nur ein
+    einziges Mietverhaeltnis bestand (kein Mieterwechsel, kein Leerstand) -
+    dann geht jede umlagefaehige Position ohnehin zu 100% an dieses eine
+    Mietverhaeltnis, unabhaengig von der Verteilmethode. Zaehlerstaende bzw.
+    Personenzahl-Eintraege sind in diesem Fall nicht erforderlich."""
+    beleg = analysiere_belegung(jahresabrechnung)
+    return len(beleg["relevante_mv"]) == 1 and beleg["leerstandstage"] == 0
+
+
 def wasser_warnungen(jahresabrechnung: models.Jahresabrechnung) -> list:
     """Liefert die Bezeichnungen der umlagefaehigen Kostenarten mit
     Verteilmethode "zwischenablesung_wasser", fuer die ueber den gesamten
     Abrechnungszeitraum keine ausreichenden Zaehlerstaende vorliegen (wuerde
     also zeitanteilig genaehert statt nach echtem Verbrauch verteilt). Dient
-    fuer einen proaktiven Hinweis, bevor/unabhaengig davon berechnet wird."""
+    fuer einen proaktiven Hinweis, bevor/unabhaengig davon berechnet wird.
+    Kein Hinweis, wenn ohnehin nur ein Mietverhaeltnis den gesamten Zeitraum
+    belegt (siehe _kein_verteilungsbedarf)."""
+    if _kein_verteilungsbedarf(jahresabrechnung):
+        return []
+
     objekt = jahresabrechnung.objekt
     zeitraum_von = jahresabrechnung.zeitraum_von
     zeitraum_bis = jahresabrechnung.zeitraum_bis
@@ -397,12 +431,15 @@ def personentage_warnungen(jahresabrechnung: models.Jahresabrechnung) -> list:
     Verteilmethode "personentage", fuer die nicht fuer alle im Zeitraum
     ueberlappenden Mietverhaeltnisse ausreichende Personenzahl-Eintraege
     vorliegen (wuerde also zeitanteilig genaehert statt nach Personenzahl
-    verteilt)."""
+    verteilt). Kein Hinweis, wenn ohnehin nur ein Mietverhaeltnis den
+    gesamten Zeitraum belegt (siehe _kein_verteilungsbedarf)."""
     hat_personentage_kostenart = any(
         pos.umlagefaehig and pos.kostenart.verteilmethode == "personentage"
         for pos in jahresabrechnung.positionen
     )
     if not hat_personentage_kostenart:
+        return []
+    if _kein_verteilungsbedarf(jahresabrechnung):
         return []
 
     _, gesamt_ok = _personentage_gesamt(_relevante_mv_perioden(jahresabrechnung))

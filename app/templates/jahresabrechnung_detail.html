@@ -269,7 +269,6 @@ August werden als ein Block mit zusammen 40 Promille geführt.</p>
 
 {% if ja.mieterabrechnungen %}
 <h3>Ergebnis (chronologisch, inkl. Leerstand)</h3>
-{% set summe_umlagefaehig_hv = ja.positionen|selectattr("umlagefaehig")|sum(attribute="betrag") %}
 {% for ma in ja.mieterabrechnungen|sort(attribute="sortier_datum") %}
 <h4>
   {{ ma.titel }} ({{ ma.tage_im_zeitraum }} von {{ beleg.gesamttage }} Tagen)
@@ -290,6 +289,13 @@ August werden als ein Block mit zusammen 40 Promille geführt.</p>
   <tr><td><strong>Kosten, die beim Eigentümer verbleiben</strong></td><td colspan="3"><strong>{{ ma.summe_umlagefaehig|de }}&nbsp;€</strong></td></tr>
   {% else %}
   <tr><td><strong>Summe umlagefähige Kosten</strong></td><td colspan="3"><strong>{{ ma.summe_umlagefaehig|de }}&nbsp;€</strong></td></tr>
+  {% if ma.mietverhaeltnis.umsatzsteuerpflichtig %}
+  <tr>
+    <td>zzgl. {{ (ma.mietverhaeltnis.mwst_satz if ma.mietverhaeltnis.mwst_satz is not none else 19.0)|de(1) }}% MwSt.</td>
+    <td colspan="3">{{ ma.mwst_betrag|de }}&nbsp;€</td>
+  </tr>
+  <tr><td><strong>Gesamtbetrag</strong></td><td colspan="3"><strong>{{ ma.gesamtbetrag|de }}&nbsp;€</strong></td></tr>
+  {% endif %}
   <tr><td>Summe Vorauszahlungen</td><td colspan="3">{{ ma.summe_vorauszahlung|de }}&nbsp;€</td></tr>
   <tr>
     <td><strong>{% if ma.differenz >= 0 %}Nachzahlung{% else %}Guthaben{% endif %}</strong></td>
@@ -305,8 +311,8 @@ August werden als ein Block mit zusammen 40 Promille geführt.</p>
     <td colspan="3">{{ (ma.mietverhaeltnis.nk_abschlag_monatlich|de ~ "&nbsp;€")|safe if ma.mietverhaeltnis.nk_abschlag_monatlich is not none else "–" }}</td>
   </tr>
   <tr>
-    <td>Neu berechneter Abschlag (Summe umlagefähig HV / 12 Monate)</td>
-    <td colspan="3">{{ (summe_umlagefaehig_hv / 12)|de }}&nbsp;€</td>
+    <td>Neu berechneter Abschlag (Gesamtbetrag dieses Mietverhältnisses / 12 Monate)</td>
+    <td colspan="3">{{ (ma.gesamtbetrag / 12)|de }}&nbsp;€</td>
   </tr>
   {% endif %}
   {% endif %}

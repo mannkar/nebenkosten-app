@@ -85,6 +85,20 @@ class Mietverhaeltnis(Base):
     # i.d.R. nicht der Fall (Standardwert False).
     umsatzsteuerpflichtig = Column(Boolean, default=False, nullable=False)
     mwst_satz = Column(Float, nullable=True, default=19.0)  # Prozent
+    # Gewerbliche Vermietung an eine Firma statt an Privatpersonen - betrifft
+    # Anschrift/Anrede im PDF-Anschreiben (Firmenname statt Personenname,
+    # ggf. "z. Hd." mit Ansprechpartner aus den Personen).
+    ist_firma = Column(Boolean, default=False, nullable=False)
+    firma_name = Column(String, nullable=True)
+    # Abweichende Rechnungsadresse fuer die Nebenkostenabrechnung, z.B. wenn
+    # sie an eine Verwaltung/Buchhaltung statt an den Mieter selbst gehen
+    # soll - hat im PDF-Anschreiben Vorrang vor der sonst automatisch
+    # ermittelten Anschrift (Objektadresse bzw. Nachsendeadresse nach Auszug).
+    nk_rechnungsadresse_abweichend = Column(Boolean, default=False, nullable=False)
+    nk_rechnungsadresse_name = Column(String, nullable=True)
+    nk_rechnungsadresse_strasse = Column(String, nullable=True)
+    nk_rechnungsadresse_plz = Column(String, nullable=True)
+    nk_rechnungsadresse_ort = Column(String, nullable=True)
     notizen = Column(Text)
 
     objekt = relationship("Objekt", back_populates="mietverhaeltnisse")
@@ -108,7 +122,10 @@ class Mietverhaeltnis(Base):
     @property
     def anzeige_name(self) -> str:
         """Zusammengesetzter Name aller Personen des Mietverhaeltnisses,
-        z.B. bei einer WG: 'Max Mustermann / Erika Musterfrau'."""
+        z.B. bei einer WG: 'Max Mustermann / Erika Musterfrau'. Bei
+        gewerblicher Vermietung stattdessen der Firmenname."""
+        if self.ist_firma and self.firma_name:
+            return self.firma_name
         namen = [f"{p.vorname} {p.nachname}".strip() for p in self.personen]
         return " / ".join(namen) if namen else "(keine Person erfasst)"
 
@@ -325,10 +342,30 @@ class Mieterabrechnung(Base):
         return self.anzeige_von
 
     @property
+    def mwst_betrag(self) -> float:
+        """MwSt.-Betrag auf die Nebenkosten, falls das Mietverhaeltnis
+        umsatzsteuerpflichtig ist (par. 9 UStG bei gewerblicher Vermietung),
+        sonst 0. Einzige Quelle fuer diese Berechnung - sowohl die
+        App-Ergebnisanzeige als auch das PDF-Anschreiben nutzen diese
+        Property, damit beide immer denselben Betrag zeigen."""
+        if self.ist_leerstand or not self.mietverhaeltnis.umsatzsteuerpflichtig:
+            return 0.0
+        satz = self.mietverhaeltnis.mwst_satz if self.mietverhaeltnis.mwst_satz is not None else 19.0
+        return round(self.summe_umlagefaehig * satz / 100, 2)
+
+    @property
+    def gesamtbetrag(self) -> float:
+        """Nebenkosten inkl. MwSt. (falls umsatzsteuerpflichtig), sonst
+        identisch zu summe_umlagefaehig."""
+        return round(self.summe_umlagefaehig + self.mwst_betrag, 2)
+
+    @property
     def differenz(self) -> float:
         """Positiv = Nachzahlung des Mieters, negativ = Guthaben des Mieters.
-        Bei Leerstand nicht relevant (keine Vorauszahlung vorhanden)."""
-        return round(self.summe_umlagefaehig - self.summe_vorauszahlung, 2)
+        Beruecksichtigt MwSt. falls umsatzsteuerpflichtig - die Vorauszahlung
+        gilt in dem Fall als bereits brutto (inkl. MwSt.) geleistet. Bei
+        Leerstand nicht relevant (keine Vorauszahlung vorhanden)."""
+        return round(self.gesamtbetrag - self.summe_vorauszahlung, 2)
 
     @property
     def laeuft_ueber_jahresende_hinaus(self) -> bool:
