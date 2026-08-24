@@ -5,6 +5,12 @@
 <h1>{% if mv %}Mietverhältnis bearbeiten{% else %}Neues Mietverhältnis{% endif %}</h1>
 <p class="muted">{{ objekt.bezeichnung }}</p>
 
+{% if fehler %}
+<div style="background:#fbeae9; border-left:4px solid var(--danger); padding:0.8rem 1rem; margin-bottom:1.2rem; border-radius:4px;">
+  <p style="margin:0;"><strong>Achtung:</strong> {{ fehler }}</p>
+</div>
+{% endif %}
+
 <form class="card" method="post" style="max-width: 720px;"
       action="{% if mv %}/mietverhaeltnisse/{{ mv.id }}/bearbeiten{% else %}/objekte/{{ objekt.id }}/mietverhaeltnisse/neu{% endif %}">
 
@@ -19,6 +25,13 @@
     Lücke, wird sie automatisch als Leerstand erfasst.</p>
   </div>
   {% endif %}
+
+  <label>Bezeichnung (optional)</label>
+  <input name="bezeichnung" value="{{ (mv.bezeichnung or '') if mv else '' }}"
+         placeholder="z.B. Schuster/Wilhelm">
+  <p class="muted" style="margin-top:0.2rem;">Frei wählbarer Name für dieses Mietverhältnis - wird
+  überall anstelle des automatisch aus den Personen zusammengesetzten Namens angezeigt. Leer lassen,
+  um weiterhin die Namen der Personen zu verwenden.</p>
 
   <div class="grid-2">
     <div><label>Einzug</label>
@@ -75,6 +88,14 @@
     {% set personen_liste = mv.personen if (mv and mv.personen) else [none] %}
     {% for person in personen_liste %}
     <div class="person-block">
+      <input type="hidden" name="person_kontakt_id" value="{{ person.id if person else '' }}">
+      <label>Bestehenden Kontakt aus dem Adressbuch übernehmen (optional)</label>
+      <select name="person_vorhandener_kontakt" onchange="vorhandenerKontaktGewaehlt(this)" {% if person %}disabled{% endif %}>
+        <option value="">– neuen Kontakt anlegen –</option>
+        {% for kk in kontakte if kk.ist_mieter %}
+        <option value="{{ kk.id }}">{{ kk.anzeige_name }}</option>
+        {% endfor %}
+      </select>
       <div class="grid-2">
         <div><label>Anrede</label>
           <select name="person_anrede">
@@ -98,28 +119,20 @@
         <div><label>Telefon</label>
           <input name="person_telefon" value="{{ (person.telefon or '') if person else '' }}"></div>
       </div>
-      <p class="muted" style="margin-bottom:0.2rem;">Adresse vor Mietverhältnis</p>
+      <p class="muted" style="margin-bottom:0.2rem;">Adresse (aktuell gültig)</p>
       <div class="grid-2">
         <div><label>Straße</label>
-          <input name="person_adresse_vor_strasse" value="{{ (person.adresse_vor_strasse or '') if person else '' }}"></div>
+          <input name="person_adresse_strasse" value="{{ (person.aktuelle_adresse.strasse or '') if person and person.aktuelle_adresse else '' }}"></div>
         <div><label>PLZ / Ort</label>
           <div style="display:flex; gap:0.5rem;">
-            <input name="person_adresse_vor_plz" value="{{ (person.adresse_vor_plz or '') if person else '' }}" style="max-width:100px">
-            <input name="person_adresse_vor_ort" value="{{ (person.adresse_vor_ort or '') if person else '' }}">
+            <input name="person_adresse_plz" value="{{ (person.aktuelle_adresse.plz or '') if person and person.aktuelle_adresse else '' }}" style="max-width:100px">
+            <input name="person_adresse_ort" value="{{ (person.aktuelle_adresse.ort or '') if person and person.aktuelle_adresse else '' }}">
           </div>
         </div>
       </div>
-      <p class="muted" style="margin-bottom:0.2rem;">Adresse nach Mietverhältnis</p>
-      <div class="grid-2">
-        <div><label>Straße</label>
-          <input name="person_adresse_nach_strasse" value="{{ (person.adresse_nach_strasse or '') if person else '' }}"></div>
-        <div><label>PLZ / Ort</label>
-          <div style="display:flex; gap:0.5rem;">
-            <input name="person_adresse_nach_plz" value="{{ (person.adresse_nach_plz or '') if person else '' }}" style="max-width:100px">
-            <input name="person_adresse_nach_ort" value="{{ (person.adresse_nach_ort or '') if person else '' }}">
-          </div>
-        </div>
-      </div>
+      <p class="muted" style="margin-top:0.2rem;">Ändert sich die Adresse (z.B. beim Auszug), hier die
+      neue Adresse eintragen – die bisherige bleibt als Historie im <a href="/kontakte">Adressbuch</a>
+      erhalten.</p>
       <p>
         <button type="button" class="btn" onclick="adresseVonErsterPersonUebernehmen(this)">Adresse von Person 1 übernehmen</button>
         <button type="button" class="btn danger" onclick="personEntfernen(this)">Person entfernen</button>
@@ -136,6 +149,14 @@
 
 <template id="person-template">
   <div class="person-block">
+    <input type="hidden" name="person_kontakt_id" value="">
+    <label>Bestehenden Kontakt aus dem Adressbuch übernehmen (optional)</label>
+    <select name="person_vorhandener_kontakt" onchange="vorhandenerKontaktGewaehlt(this)">
+      <option value="">– neuen Kontakt anlegen –</option>
+      {% for kk in kontakte if kk.ist_mieter %}
+      <option value="{{ kk.id }}">{{ kk.anzeige_name }}</option>
+      {% endfor %}
+    </select>
     <div class="grid-2">
       <div><label>Anrede</label>
         <select name="person_anrede">
@@ -155,23 +176,13 @@
       <div><label>E-Mail</label><input name="person_email" type="text"></div>
       <div><label>Telefon</label><input name="person_telefon"></div>
     </div>
-    <p class="muted" style="margin-bottom:0.2rem;">Adresse vor Mietverhältnis</p>
+    <p class="muted" style="margin-bottom:0.2rem;">Adresse (aktuell gültig)</p>
     <div class="grid-2">
-      <div><label>Straße</label><input name="person_adresse_vor_strasse"></div>
+      <div><label>Straße</label><input name="person_adresse_strasse"></div>
       <div><label>PLZ / Ort</label>
         <div style="display:flex; gap:0.5rem;">
-          <input name="person_adresse_vor_plz" style="max-width:100px">
-          <input name="person_adresse_vor_ort">
-        </div>
-      </div>
-    </div>
-    <p class="muted" style="margin-bottom:0.2rem;">Adresse nach Mietverhältnis</p>
-    <div class="grid-2">
-      <div><label>Straße</label><input name="person_adresse_nach_strasse"></div>
-      <div><label>PLZ / Ort</label>
-        <div style="display:flex; gap:0.5rem;">
-          <input name="person_adresse_nach_plz" style="max-width:100px">
-          <input name="person_adresse_nach_ort">
+          <input name="person_adresse_plz" style="max-width:100px">
+          <input name="person_adresse_ort">
         </div>
       </div>
     </div>
@@ -199,15 +210,46 @@ function adresseVonErsterPersonUebernehmen(button) {
   var aktuellerBlock = button.closest('.person-block');
   var ersterBlock = document.querySelector('#personen-liste .person-block');
   if (!aktuellerBlock || !ersterBlock || aktuellerBlock === ersterBlock) { return; }
-  var felder = [
-    'person_adresse_vor_strasse', 'person_adresse_vor_plz', 'person_adresse_vor_ort',
-    'person_adresse_nach_strasse', 'person_adresse_nach_plz', 'person_adresse_nach_ort'
-  ];
+  var felder = ['person_adresse_strasse', 'person_adresse_plz', 'person_adresse_ort'];
   felder.forEach(function (name) {
     var quelle = ersterBlock.querySelector('[name="' + name + '"]');
     var ziel = aktuellerBlock.querySelector('[name="' + name + '"]');
     if (quelle && ziel) { ziel.value = quelle.value; }
   });
+}
+
+function vorhandenerKontaktGewaehlt(select) {
+  // Wichtig: hier NIE "disabled" verwenden - ein deaktiviertes Feld wird vom
+  // Browser beim Absenden komplett aus den Formulardaten ausgelassen. Da das
+  // Backend die Personen-Felder ueber mehrere gleichnamige Felder anhand
+  // ihrer Position (Index) einander zuordnet, wuerde ein fehlendes Feld alle
+  // nachfolgenden Werte verschieben oder - bei nur einer Person - dazu
+  // fuehren, dass die Auswahl gar nicht erst gespeichert wird. "readonly"
+  // verhindert das Bearbeiten genauso, das Feld wird aber weiterhin (mit
+  // leerem Wert) mit abgeschickt.
+  var block = select.closest('.person-block');
+  if (!block) { return; }
+  var gewaehlt = !!select.value;
+  var textfelder = [
+    'person_vorname', 'person_nachname', 'person_email',
+    'person_telefon', 'person_adresse_strasse', 'person_adresse_plz', 'person_adresse_ort'
+  ];
+  textfelder.forEach(function (name) {
+    var feld = block.querySelector('[name="' + name + '"]');
+    if (feld) {
+      feld.readOnly = gewaehlt;
+      feld.classList.toggle('feld-inaktiv', gewaehlt);
+      if (gewaehlt) { feld.value = ''; }
+    }
+  });
+  // "Anrede" ist ein <select> - dafuer gibt es kein readonly, bleibt also
+  // bedienbar (der Wert wird serverseitig ohnehin ignoriert, sobald ein
+  // bestehender Kontakt gewaehlt ist), nur optisch abgedunkelt.
+  var anrede = block.querySelector('[name="person_anrede"]');
+  if (anrede) {
+    anrede.classList.toggle('feld-inaktiv', gewaehlt);
+    if (gewaehlt) { anrede.value = ''; }
+  }
 }
 </script>
 

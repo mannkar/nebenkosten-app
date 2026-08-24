@@ -1,7 +1,7 @@
 {% extends "base.html" %}
-{% block title %}Mieter{% endblock %}
+{% block title %}Mietverhältnisse{% endblock %}
 {% block content %}
-<h1>Mieter</h1>
+<h1>Mietverhältnisse</h1>
 
 <p>
   <label style="font-weight:600; font-size:0.85rem;">Neues Mietverhältnis anlegen für:</label>
@@ -26,8 +26,8 @@
   {% endif %}
 </form>
 
-<table>
-  <tr><th>Objekt</th><th>Mieter</th><th>Personen</th><th>Einzug</th><th>Auszug</th><th></th></tr>
+<table class="jstable">
+  <tr><th>Objekt</th><th>Mieter</th><th>Personen</th><th>Einzug</th><th>Auszug</th><th data-nosort data-nofilter></th></tr>
   {% for mv in mietverhaeltnisse %}
   <tr>
     <td><a href="/objekte/{{ mv.objekt.id }}">{{ mv.objekt.bezeichnung }}</a></td>

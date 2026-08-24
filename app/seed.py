@@ -68,16 +68,20 @@ def seed_testdaten(db: Session) -> None:
     )
     db.add(mv1)
     db.flush()
-    db.add(models.Person(mietverhaeltnis_id=mv1.id, vorname="Max", nachname="Mustermann"))
+    kontakt1 = models.Kontakt(ist_firma=False, vorname="Max", nachname="Mustermann")
+    db.add(kontakt1)
+    db.flush()
+    db.add(models.MietverhaeltnisKontakt(mietverhaeltnis_id=mv1.id, kontakt_id=kontakt1.id))
 
     mv2 = models.Mietverhaeltnis(
         objekt_id=objekt.id, einzug=date(2025, 4, 1), auszug=None,
     )
     db.add(mv2)
     db.flush()
-    db.add(models.Person(
-        mietverhaeltnis_id=mv2.id, anrede="Herr", vorname="Peter", nachname="Parker",
-    ))
+    kontakt2 = models.Kontakt(ist_firma=False, anrede="Herr", vorname="Peter", nachname="Parker")
+    db.add(kontakt2)
+    db.flush()
+    db.add(models.MietverhaeltnisKontakt(mietverhaeltnis_id=mv2.id, kontakt_id=kontakt2.id))
 
     ja = models.Jahresabrechnung(
         objekt_id=objekt.id, jahr=2025,

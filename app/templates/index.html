@@ -16,7 +16,7 @@
     <td>{{ o.bezeichnung }}</td>
     <td>{{ o.strasse }}, {{ o.plz }} {{ o.ort }}</td>
     <td>{{ o.wohnflaeche_qm|de if o.wohnflaeche_qm is not none else "-" }} m²</td>
-    <td>{{ o.verwaltung.name if o.verwaltung else "keine (selbstverwaltet)" }}</td>
+    <td>{{ o.verwaltung.anzeige_name if o.verwaltung else "keine (selbstverwaltet)" }}</td>
     <td>{{ o.mietverhaeltnisse|length }}</td>
     <td>{{ o.jahresabrechnungen|length }}</td>
     <td><a class="btn" href="/objekte/{{ o.id }}">Öffnen</a></td>

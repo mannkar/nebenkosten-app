@@ -5,14 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Nebenkostenabrechnung{% endblock %}</title>
   <link rel="stylesheet" href="/static/style.css?v={{ static_version('style.css') }}">
+  <script src="/static/table-tools.js?v={{ static_version('table-tools.js') }}" defer></script>
 </head>
 <body>
   <div class="layout">
     <nav class="sidebar">
       <a href="/">Objekte</a>
-      <a href="/mieter">Mieter</a>
+      <a href="/mieter">Mietverhältnisse</a>
       <a href="/jahresabrechnungen">Jahresabrechnungen</a>
-      <a href="/verwaltungen">Verwaltungen</a>
+      <a href="/kontakte">Kontakte</a>
       <a href="/kostenarten">Kostenarten</a>
       <a href="/export" style="margin-top:auto;">CSV-Export</a>
     </nav>

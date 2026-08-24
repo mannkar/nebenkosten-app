@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Kontakte{% endblock %}
+{% block content %}
+<h1>Kontakte (Adressbuch)</h1>
+<p class="muted">Zentrales Adressbuch für Eigentümer, Hausverwaltungen und Mieter. Ein Kontakt lässt
+sich mehrfach verwenden, z.B. als Eigentümer mehrerer Objekte, statt die Daten jedes Mal neu
+einzutippen.</p>
+
+<details style="margin-bottom:1rem;">
+  <summary><strong>+ Neuer Kontakt</strong></summary>
+  <form class="card" method="post" action="/kontakte/neu">
+    <label><input type="checkbox" name="ist_firma" value="1" style="width:auto;display:inline"> Firma
+    (statt Privatperson)</label>
+
+    <label>Rolle(n)</label>
+    <div class="grid-2">
+      <div><label><input type="checkbox" name="ist_mieter" value="1"
+             style="width:auto;display:inline"> Mieter</label></div>
+      <div><label><input type="checkbox" name="ist_eigentuemer" value="1"
+             style="width:auto;display:inline"> Eigentümer / Vermieter</label></div>
+    </div>
+    <div class="grid-2">
+      <div><label><input type="checkbox" name="ist_verwalter" value="1"
+             style="width:auto;display:inline"> Verwalter</label></div>
+      <div><label><input type="checkbox" name="ist_handwerker" value="1"
+             style="width:auto;display:inline"> Handwerker</label></div>
+    </div>
+    <p class="muted" style="margin-top:0.2rem;">Steuert, in welchen Auswahllisten dieser Kontakt
+    vorgeschlagen wird (z.B. nur Kontakte mit "Eigentümer" in der Eigentümer-Auswahl am Objekt).
+    Mehrfachauswahl möglich.</p>
+
+    <label>Firmenname</label>
+    <input name="firma_name" placeholder="z.B. Hausverwaltung Muster GmbH">
+    <div class="grid-2">
+      <div><label>Anrede</label>
+        <select name="anrede">
+          <option value="">–</option>
+          <option value="Herr">Herr</option>
+          <option value="Frau">Frau</option>
+          <option value="Divers">Divers</option>
+        </select>
+      </div>
+      <div></div>
+    </div>
+    <div class="grid-2">
+      <div><label>Vorname</label><input name="vorname"></div>
+      <div><label>Nachname</label><input name="nachname"></div>
+    </div>
+    <p class="muted" style="margin-top:0.2rem;">Bei einer Firma mit Ansprechpartner: Firmenname oben,
+    Vor-/Nachname hier als Ansprechpartner.</p>
+    <div class="grid-2">
+      <div><label>Telefon</label><input name="telefon"></div>
+      <div><label>E-Mail</label><input name="email" type="text"></div>
+    </div>
+    <label>Straße</label>
+    <input name="strasse">
+    <div class="grid-2">
+      <div><label>PLZ</label><input name="plz"></div>
+      <div><label>Ort</label><input name="ort"></div>
+    </div>
+    <div class="grid-2">
+      <div><label>Bank</label><input name="bank_name"></div>
+      <div></div>
+    </div>
+    <div class="grid-2">
+      <div><label>IBAN</label><input name="bank_iban"></div>
+      <div><label>BIC</label><input name="bank_bic"></div>
+    </div>
+    <label>Notizen</label>
+    <textarea name="notizen" rows="2"></textarea>
+    <button type="submit">Anlegen</button>
+  </form>
+</details>
+
+<table class="jstable">
+  <tr><th>Name</th><th>Ort</th><th>Telefon</th><th>E-Mail</th><th>Rollen</th><th data-nosort data-nofilter></th></tr>
+  {% for k in kontakte %}
+  <tr>
+    <td><a href="/kontakte/{{ k.id }}">{{ k.anzeige_name }}</a></td>
+    <td>{{ k.aktuelle_adresse.ort if k.aktuelle_adresse else "" }}</td>
+    <td>{{ k.telefon or "" }}</td>
+    <td>{{ k.email or "" }}</td>
+    <td>
+      {% if k.ist_mieter %}<span class="badge">Mieter</span>{% endif %}
+      {% if k.ist_eigentuemer %}<span class="badge">Eigentümer</span>{% endif %}
+      {% if k.ist_verwalter %}<span class="badge">Verwalter</span>{% endif %}
+      {% if k.ist_handwerker %}<span class="badge">Handwerker</span>{% endif %}
+    </td>
+    <td><a class="btn" href="/kontakte/{{ k.id }}">Öffnen</a></td>
+  </tr>
+  {% else %}
+  <tr><td colspan="6" class="muted">Noch keine Kontakte angelegt.</td></tr>
+  {% endfor %}
+</table>
+{% endblock %}

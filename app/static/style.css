@@ -160,3 +160,22 @@ details summary::before {
   transition: transform 0.15s ease;
 }
 details[open] summary::before { transform: rotate(90deg); }
+
+/* Sortier-/Filterleiste fuer table.jstable (siehe table-tools.js) */
+th.jstable-sortable { cursor: pointer; user-select: none; }
+th.jstable-sortable:hover { background: #e8e6dd; }
+th.jstable-asc::after { content: " ▲"; font-size: 0.7rem; }
+th.jstable-desc::after { content: " ▼"; font-size: 0.7rem; }
+tr.jstable-filter-row td { background: #fbfbf8; padding: 0.3rem 0.4rem; }
+tr.jstable-filter-row input {
+  width: 100%;
+  padding: 0.25rem 0.4rem;
+  font-size: 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+/* Felder eines Personen-Blocks, die wegen Auswahl eines bestehenden
+   Adressbuch-Kontakts vorerst nicht genutzt werden (siehe
+   vorhandenerKontaktGewaehlt() in mietverhaeltnis_form.html). */
+.feld-inaktiv { background: #f0efe9; color: #999; }

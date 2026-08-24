@@ -23,7 +23,16 @@ config = context.config
 config.set_main_option("sqlalchemy.url", SQLALCHEMY_DATABASE_URL)
 
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    # disable_existing_loggers=False ist hier wichtig: fileConfig() deaktiviert
+    # per Default ALLE zuvor bestehenden Logger, die nicht explizit in
+    # alembic.ini gelistet sind - inkl. uvicorns eigener Logger ("uvicorn",
+    # "uvicorn.error", "uvicorn.access"). Da diese Migration bei jedem
+    # App-Start automatisch mitlaeuft (siehe app/migrate.py), wuerde uvicorn
+    # dadurch komplett stumm geschaltet, sobald die Migration einmal
+    # gelaufen ist - inkl. eventueller Fehlermeldungen beim eigentlichen
+    # Start danach. Beim eigenstaendigen Aufruf ueber die "alembic"-CLI
+    # spielt das keine Rolle, hier aber schon.
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 # Metadata aller Modelle - Grundlage fuer "alembic revision --autogenerate".
 target_metadata = Base.metadata

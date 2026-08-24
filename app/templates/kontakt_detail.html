@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+{% block title %}{{ k.anzeige_name }}{% endblock %}
+{% block content %}
+<p><a href="/kontakte">&larr; alle Kontakte</a></p>
+<h1>{{ k.anzeige_name }}</h1>
+
+<h2>Stammdaten bearbeiten</h2>
+<form class="card" method="post" action="/kontakte/{{ k.id }}/bearbeiten">
+  <label><input type="checkbox" name="ist_firma" value="1" {% if k.ist_firma %}checked{% endif %}
+         style="width:auto;display:inline"> Firma (statt Privatperson)</label>
+
+  <label>Rolle(n)</label>
+  <div class="grid-2">
+    <div><label><input type="checkbox" name="ist_mieter" value="1" {% if k.ist_mieter %}checked{% endif %}
+           style="width:auto;display:inline"> Mieter</label></div>
+    <div><label><input type="checkbox" name="ist_eigentuemer" value="1" {% if k.ist_eigentuemer %}checked{% endif %}
+           style="width:auto;display:inline"> Eigentümer / Vermieter</label></div>
+  </div>
+  <div class="grid-2">
+    <div><label><input type="checkbox" name="ist_verwalter" value="1" {% if k.ist_verwalter %}checked{% endif %}
+           style="width:auto;display:inline"> Verwalter</label></div>
+    <div><label><input type="checkbox" name="ist_handwerker" value="1" {% if k.ist_handwerker %}checked{% endif %}
+           style="width:auto;display:inline"> Handwerker</label></div>
+  </div>
+  <p class="muted" style="margin-top:0.2rem;">Steuert, in welchen Auswahllisten dieser Kontakt
+  vorgeschlagen wird (z.B. nur Kontakte mit "Eigentümer" in der Eigentümer-Auswahl am Objekt).
+  Mehrfachauswahl möglich.</p>
+
+  <label>Firmenname</label>
+  <input name="firma_name" value="{{ k.firma_name or '' }}">
+  <div class="grid-2">
+    <div><label>Anrede</label>
+      <select name="anrede">
+        <option value="" {% if not k.anrede %}selected{% endif %}>–</option>
+        <option value="Herr" {% if k.anrede == "Herr" %}selected{% endif %}>Herr</option>
+        <option value="Frau" {% if k.anrede == "Frau" %}selected{% endif %}>Frau</option>
+        <option value="Divers" {% if k.anrede == "Divers" %}selected{% endif %}>Divers</option>
+      </select>
+    </div>
+    <div></div>
+  </div>
+  <div class="grid-2">
+    <div><label>Vorname{% if k.ist_firma %} (Ansprechpartner){% endif %}</label>
+      <input name="vorname" value="{{ k.vorname or '' }}"></div>
+    <div><label>Nachname{% if k.ist_firma %} (Ansprechpartner){% endif %}</label>
+      <input name="nachname" value="{{ k.nachname or '' }}"></div>
+  </div>
+  <div class="grid-2">
+    <div><label>Telefon</label><input name="telefon" value="{{ k.telefon or '' }}"></div>
+    <div><label>E-Mail</label><input name="email" value="{{ k.email or '' }}" type="text"></div>
+  </div>
+  <div class="grid-2">
+    <div><label>Bank</label><input name="bank_name" value="{{ k.bank_name or '' }}"></div>
+    <div></div>
+  </div>
+  <div class="grid-2">
+    <div><label>IBAN</label><input name="bank_iban" value="{{ k.bank_iban or '' }}"></div>
+    <div><label>BIC</label><input name="bank_bic" value="{{ k.bank_bic or '' }}"></div>
+  </div>
+  <label>Notizen</label>
+  <textarea name="notizen" rows="2">{{ k.notizen or '' }}</textarea>
+  <button type="submit">Speichern</button>
+</form>
+
+<h2 id="adressen">Adressen</h2>
+<p class="muted">Ein Kontakt kann im Lauf der Zeit mehrere Adressen haben - "Gültig ab/bis" leer
+lassen, wenn Beginn bzw. Ende nicht bekannt sind oder die Adresse aktuell gilt.</p>
+<table>
+  <tr><th>Straße</th><th>PLZ/Ort</th><th>Gültig ab</th><th>Gültig bis</th><th></th></tr>
+  {% for a in k.adressen|sort(attribute="gueltig_von") %}
+  <tr>
+    <td><input name="strasse" form="adresse-edit-{{ a.id }}" value="{{ a.strasse or '' }}"></td>
+    <td>
+      <div style="display:flex; gap:0.5rem;">
+        <input name="plz" form="adresse-edit-{{ a.id }}" value="{{ a.plz or '' }}" style="max-width:90px">
+        <input name="ort" form="adresse-edit-{{ a.id }}" value="{{ a.ort or '' }}">
+      </div>
+    </td>
+    <td><input name="gueltig_von" type="date" form="adresse-edit-{{ a.id }}" value="{{ a.gueltig_von or '' }}"></td>
+    <td><input name="gueltig_bis" type="date" form="adresse-edit-{{ a.id }}" value="{{ a.gueltig_bis or '' }}"></td>
+    <td>
+      <div class="row-actions">
+        <button type="submit" form="adresse-edit-{{ a.id }}" class="btn">Speichern</button>
+        <form class="inline" method="post" action="/kontakt-adresse/{{ a.id }}/loeschen">
+          <button type="submit" class="danger">Löschen</button>
+        </form>
+      </div>
+    </td>
+  </tr>
+  {% else %}
+  <tr><td colspan="5" class="muted">Noch keine Adresse erfasst.</td></tr>
+  {% endfor %}
+  <tr>
+    <td><input name="strasse" form="adresse-form"></td>
+    <td>
+      <div style="display:flex; gap:0.5rem;">
+        <input name="plz" form="adresse-form" style="max-width:90px">
+        <input name="ort" form="adresse-form">
+      </div>
+    </td>
+    <td><input name="gueltig_von" type="date" form="adresse-form"></td>
+    <td><input name="gueltig_bis" type="date" form="adresse-form"></td>
+    <td><button type="submit" form="adresse-form" class="btn">+ Hinzufügen</button></td>
+  </tr>
+</table>
+{% for a in k.adressen %}
+<form id="adresse-edit-{{ a.id }}" method="post" action="/kontakt-adresse/{{ a.id }}/bearbeiten"></form>
+{% endfor %}
+<form id="adresse-form" method="post" action="/kontakte/{{ k.id }}/adresse/neu"></form>
+
+{% if k.ist_eigentuemer or k.objekte_als_eigentuemer %}
+<h2>Objekte als Eigentümer</h2>
+<table>
+  <tr><th>Objekt</th><th>Adresse</th></tr>
+  {% for o in k.objekte_als_eigentuemer %}
+  <tr><td><a href="/objekte/{{ o.id }}">{{ o.bezeichnung }}</a></td><td>{{ o.strasse }}, {{ o.plz }} {{ o.ort }}</td></tr>
+  {% else %}
+  <tr><td colspan="2" class="muted">Keine.</td></tr>
+  {% endfor %}
+</table>
+{% endif %}
+
+{% if k.ist_verwalter or k.objekte_als_verwaltung %}
+<h2>Objekte als Verwaltung</h2>
+<table>
+  <tr><th>Objekt</th><th>Adresse</th></tr>
+  {% for o in k.objekte_als_verwaltung %}
+  <tr><td><a href="/objekte/{{ o.id }}">{{ o.bezeichnung }}</a></td><td>{{ o.strasse }}, {{ o.plz }} {{ o.ort }}</td></tr>
+  {% else %}
+  <tr><td colspan="2" class="muted">Keine.</td></tr>
+  {% endfor %}
+</table>
+{% endif %}
+
+<h2>Mietverhältnisse</h2>
+<table>
+  <tr><th>Objekt</th><th>Einzug</th><th>Auszug</th></tr>
+  {% for link in k.mietverhaeltnis_links %}
+  <tr>
+    <td><a href="/mietverhaeltnisse/{{ link.mietverhaeltnis.id }}/bearbeiten">{{ link.mietverhaeltnis.objekt.bezeichnung }}</a></td>
+    <td>{{ link.mietverhaeltnis.einzug }}</td>
+    <td>{{ link.mietverhaeltnis.auszug or "aktuell" }}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="3" class="muted">Keine.</td></tr>
+  {% endfor %}
+</table>
+
+<h2>Änderungshistorie</h2>
+<table>
+  <tr><th>Datum</th><th>Feld</th><th>Alt</th><th>Neu</th></tr>
+  {% for h in historie %}
+  <tr>
+    <td>{{ h.geaendert_am.strftime("%d.%m.%Y %H:%M") }}</td>
+    <td>{{ h.feld }}</td>
+    <td>{{ h.alter_wert or "–" }}</td>
+    <td>{{ h.neuer_wert or "–" }}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="4" class="muted">Noch keine Änderungen protokolliert.</td></tr>
+  {% endfor %}
+</table>
+
+<form method="post" action="/kontakte/{{ k.id }}/loeschen"
+      onsubmit="return confirm('Kontakt wirklich löschen? Verknüpfungen zu Objekten/Mietverhältnissen werden dabei ebenfalls entfernt.');">
+  <button type="submit" class="danger">Kontakt löschen</button>
+</form>
+{% endblock %}

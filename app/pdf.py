@@ -149,6 +149,34 @@ def _mietverhaeltnis_zeitraum(ja: models.Jahresabrechnung, mv: models.Mietverhae
     return von, bis
 
 
+def _eigentuemer_briefdaten(objekt: models.Objekt) -> dict:
+    """Liest die Absender-/Bankdaten aus dem am Objekt hinterlegten
+    Eigentuemer-Kontakt aus (statt frueher direkt am Objekt gepflegten
+    absender_*/bank_*-Feldern). Der Eigentuemer ist optional - fehlt er oder
+    hat er keine Adresse hinterlegt, liefert diese Funktion durchgaengig
+    leere Werte statt eines Fehlers, damit der Brief trotzdem erzeugt
+    werden kann (nur eben ohne Briefkopf/Bankdaten)."""
+    eigentuemer = objekt.eigentuemer
+    if eigentuemer is None:
+        return {
+            "name": "", "strasse": "", "plz": "", "ort": "",
+            "telefon": "", "email": "",
+            "bank_name": "", "bank_iban": "", "bank_bic": "",
+        }
+    adresse = eigentuemer.aktuelle_adresse
+    return {
+        "name": eigentuemer.anzeige_name or "",
+        "strasse": (adresse.strasse or "") if adresse else "",
+        "plz": (adresse.plz or "") if adresse else "",
+        "ort": (adresse.ort or "") if adresse else "",
+        "telefon": eigentuemer.telefon or "",
+        "email": eigentuemer.email or "",
+        "bank_name": eigentuemer.bank_name or "",
+        "bank_iban": eigentuemer.bank_iban or "",
+        "bank_bic": eigentuemer.bank_bic or "",
+    }
+
+
 def _empfaenger_zeilen(mv: models.Mietverhaeltnis, objekt: models.Objekt, heute: date) -> list[str]:
     """Alle Zeilen des Anschriftenfelds im Brief (Name(n) gefolgt von Straße
     und PLZ/Ort). Prioritaet der Adresse:
@@ -181,11 +209,12 @@ def _empfaenger_zeilen(mv: models.Mietverhaeltnis, objekt: models.Objekt, heute:
         ausgezogen = mv.auszug is not None and mv.auszug <= heute
         if ausgezogen and mv.personen:
             p = mv.personen[0]
-            if p.adresse_nach_strasse or p.adresse_nach_plz or p.adresse_nach_ort:
+            p_adresse = p.aktuelle_adresse
+            if p_adresse and (p_adresse.strasse or p_adresse.plz or p_adresse.ort):
                 adresse = {
-                    "strasse": p.adresse_nach_strasse or "",
-                    "plz": p.adresse_nach_plz or "",
-                    "ort": p.adresse_nach_ort or "",
+                    "strasse": p_adresse.strasse or "",
+                    "plz": p_adresse.plz or "",
+                    "ort": p_adresse.ort or "",
                 }
         if adresse is None:
             adresse = {
@@ -204,11 +233,12 @@ def _empfaenger_zeilen(mv: models.Mietverhaeltnis, objekt: models.Objekt, heute:
 
 
 def _footer(canvas, doc, objekt: models.Objekt):
+    briefdaten = _eigentuemer_briefdaten(objekt)
     bankdaten = " - ".join(
         teil for teil in [
-            objekt.bank_name,
-            f"IBAN: {objekt.bank_iban}" if objekt.bank_iban else None,
-            f"BIC: {objekt.bank_bic}" if objekt.bank_bic else None,
+            briefdaten["bank_name"],
+            f"IBAN: {briefdaten['bank_iban']}" if briefdaten["bank_iban"] else None,
+            f"BIC: {briefdaten['bank_bic']}" if briefdaten["bank_bic"] else None,
         ] if teil
     )
     if not bankdaten:
@@ -231,13 +261,15 @@ def _brief_story(ja: models.Jahresabrechnung, ma: models.Mieterabrechnung, heute
     objekt = ja.objekt
     story = []
 
+    briefdaten = _eigentuemer_briefdaten(objekt)
+
     # kleiner Briefkopf oben (fuer Blankopapier-Druck)
-    kopf_zeile1 = objekt.absender_name or ""
-    kopf_teile = [t for t in [objekt.absender_strasse, f"{objekt.absender_plz or ''} {objekt.absender_ort or ''}".strip()] if t]
+    kopf_zeile1 = briefdaten["name"] or ""
+    kopf_teile = [t for t in [briefdaten["strasse"], f"{briefdaten['plz']} {briefdaten['ort']}".strip()] if t]
     kopf_zeile1 = ", ".join([t for t in [kopf_zeile1] + kopf_teile if t])
     kontakt_teile = [t for t in [
-        f"Tel. {objekt.absender_telefon}" if objekt.absender_telefon else None,
-        objekt.absender_email,
+        f"Tel. {briefdaten['telefon']}" if briefdaten["telefon"] else None,
+        briefdaten["email"] or None,
     ] if t]
     if kopf_zeile1:
         story.append(Paragraph(kopf_zeile1, _SMALL))
@@ -247,9 +279,9 @@ def _brief_story(ja: models.Jahresabrechnung, ma: models.Mieterabrechnung, heute
 
     # Ruecksendeangabe (kleine Zeile ueber der Empfaengeradresse)
     ruecksende_teile = [t for t in [
-        objekt.absender_name,
-        objekt.absender_strasse,
-        f"{objekt.absender_plz or ''} {objekt.absender_ort or ''}".strip(),
+        briefdaten["name"] or None,
+        briefdaten["strasse"] or None,
+        f"{briefdaten['plz']} {briefdaten['ort']}".strip() or None,
     ] if t]
     if ruecksende_teile:
         story.append(Paragraph(", ".join(ruecksende_teile), _SMALL_UNDERLINE))
@@ -259,7 +291,7 @@ def _brief_story(ja: models.Jahresabrechnung, ma: models.Mieterabrechnung, heute
         story.append(Paragraph(zeile, _NORMAL))
     story.append(Spacer(1, 6 * mm))
 
-    ort_datum = f"{objekt.absender_ort or objekt.ort or ''}, {heute.strftime('%d.%m.%Y')}"
+    ort_datum = f"{briefdaten['ort'] or objekt.ort or ''}, {heute.strftime('%d.%m.%Y')}"
     story.append(Paragraph(ort_datum, _NORMAL_RIGHT))
     story.append(Spacer(1, 10 * mm))
 
@@ -403,7 +435,7 @@ def _brief_story(ja: models.Jahresabrechnung, ma: models.Mieterabrechnung, heute
     story.append(Spacer(1, 8 * mm))
     story.append(Paragraph("mit freundlichen Grüßen,", _NORMAL))
     story.append(Spacer(1, 12 * mm))
-    story.append(Paragraph(objekt.absender_name or "", _NORMAL))
+    story.append(Paragraph(briefdaten["name"] or "", _NORMAL))
     story.append(Spacer(1, 6 * mm))
     story.append(Paragraph("Anlage", _NORMAL))
 

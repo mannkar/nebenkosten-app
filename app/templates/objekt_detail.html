@@ -7,11 +7,18 @@
   {{ objekt.strasse }}, {{ objekt.plz }} {{ objekt.ort }} ·
   Flurstück {{ objekt.flurstueck or "-" }} ·
   {{ objekt.wohnflaeche_qm|de if objekt.wohnflaeche_qm is not none else "-" }} m² ·
-  MEA {{ objekt.miteigentumsanteil or "-" }} ·
+  MEA {{ objekt.miteigentumsanteil or "-" }}{% if objekt.gesamtanteile is not none %} von {{ objekt.gesamtanteile|de }}{% endif %} ·
   Hausgeld {{ objekt.hausgeld_monatlich|de if objekt.hausgeld_monatlich is not none else "-" }} €/Monat ·
-  Verwaltung: {% if objekt.verwaltung %}<a href="/verwaltungen/{{ objekt.verwaltung.id }}">{{ objekt.verwaltung.name }}</a>{% else %}selbstverwaltet{% endif %} ·
+  Verwaltung: {% if objekt.verwaltung %}<a href="/kontakte/{{ objekt.verwaltung.id }}">{{ objekt.verwaltung.anzeige_name }}</a>{% else %}selbstverwaltet{% endif %} ·
+  Eigentümer: {% if objekt.eigentuemer %}<a href="/kontakte/{{ objekt.eigentuemer.id }}">{{ objekt.eigentuemer.anzeige_name }}</a>{% else %}nicht hinterlegt{% endif %} ·
   Abrechnungsjahr ab {{ dict(monate)[objekt.abrechnung_start_monat] }}
 </p>
+{% if objekt.ew_aktenzeichen or objekt.afa_jahresbetrag is not none %}
+<p class="muted">
+  EW-Aktenzeichen {{ objekt.ew_aktenzeichen or "-" }} ·
+  AfA {{ objekt.afa_jahresbetrag|de if objekt.afa_jahresbetrag is not none else "-" }} €/Jahr
+</p>
+{% endif %}
 
 <details {% if neu %}open{% endif %}>
   <summary><h2 style="display:inline;">Stammdaten bearbeiten</h2></summary>
@@ -32,16 +39,48 @@
     <div><label>Miteigentumsanteil</label><input name="miteigentumsanteil" value="{{ objekt.miteigentumsanteil or '' }}"></div>
   </div>
   <div class="grid-2">
+    <div><label>Gesamtanteile (Nenner)</label>
+      <input name="gesamtanteile" value="{{ objekt.gesamtanteile|de if objekt.gesamtanteile is not none else '' }}"
+             placeholder="z.B. 1000 oder 1000000"></div>
+    <div></div>
+  </div>
+  <div class="grid-2">
     <div><label>Wohnfläche (m²)</label><input name="wohnflaeche_qm" value="{{ objekt.wohnflaeche_qm|de if objekt.wohnflaeche_qm is not none else '' }}"></div>
     <div><label>Hausgeld (€/Monat)</label><input name="hausgeld_monatlich" value="{{ objekt.hausgeld_monatlich|de if objekt.hausgeld_monatlich is not none else '' }}"></div>
   </div>
-  <label>Verwaltung</label>
-  <select name="verwaltung_id">
-    <option value="">– selbstverwaltet (Schritt 2) –</option>
-    {% for v in verwaltungen %}
-    <option value="{{ v.id }}" {% if objekt.verwaltung_id == v.id %}selected{% endif %}>{{ v.name }}</option>
+  <div class="grid-2">
+    <div><label>EW-Aktenzeichen (Finanzamt)</label>
+      <input name="ew_aktenzeichen" value="{{ objekt.ew_aktenzeichen or '' }}" placeholder="z.B. 12/345/67890"></div>
+    <div><label>AfA (€/Jahr)</label>
+      <input name="afa_jahresbetrag" value="{{ objekt.afa_jahresbetrag|de if objekt.afa_jahresbetrag is not none else '' }}"></div>
+  </div>
+  {% set kontakte_eigentuemer = kontakte | selectattr('ist_eigentuemer') | list %}
+  {% if objekt.eigentuemer and objekt.eigentuemer not in kontakte_eigentuemer %}
+  {% set kontakte_eigentuemer = kontakte_eigentuemer + [objekt.eigentuemer] %}
+  {% endif %}
+  <label>Eigentümer</label>
+  <select name="eigentuemer_id">
+    <option value="">– nicht hinterlegt –</option>
+    {% for kk in kontakte_eigentuemer %}
+    <option value="{{ kk.id }}" {% if objekt.eigentuemer_id == kk.id %}selected{% endif %}>{{ kk.anzeige_name }}</option>
     {% endfor %}
   </select>
+  <p class="muted" style="margin-top:0.2rem;">Zeigt nur Kontakte mit der Rolle "Eigentümer". Wird im
+  Briefkopf und in der Fußzeile der PDF-Nebenkostenabrechnung verwendet (inkl. Bankdaten). Mehrere
+  Objekte desselben Eigentümers können hier denselben Kontakt auswählen. Fehlt der Kontakt noch: unter
+  <a href="/kontakte">Kontakte</a> anlegen, dann hier auswählen.</p>
+  {% set kontakte_verwalter = kontakte | selectattr('ist_verwalter') | list %}
+  {% if objekt.verwaltung and objekt.verwaltung not in kontakte_verwalter %}
+  {% set kontakte_verwalter = kontakte_verwalter + [objekt.verwaltung] %}
+  {% endif %}
+  <label>Verwaltung</label>
+  <select name="verwaltung_id">
+    <option value="">– selbstverwaltet –</option>
+    {% for kk in kontakte_verwalter %}
+    <option value="{{ kk.id }}" {% if objekt.verwaltung_id == kk.id %}selected{% endif %}>{{ kk.anzeige_name }}</option>
+    {% endfor %}
+  </select>
+  <p class="muted" style="margin-top:0.2rem;">Zeigt nur Kontakte mit der Rolle "Verwalter".</p>
   <label>Beginn des Abrechnungsjahres</label>
   <select name="abrechnung_start_monat">
     {% for nr, name in monate %}
@@ -52,32 +91,6 @@
   dieses Objekts. Bestehende Jahresabrechnungen ändern sich dadurch nicht rückwirkend.</p>
   <label>Notizen</label>
   <textarea name="notizen" rows="2">{{ objekt.notizen or '' }}</textarea>
-
-  <h3 style="margin-top:1.5rem;">Absenderdaten für die PDF-Nebenkostenabrechnung</h3>
-  <p class="muted">Wird im Briefkopf und in der Fußzeile der PDF-Abrechnung verwendet.</p>
-  <label>Name</label>
-  <input name="absender_name" value="{{ objekt.absender_name or '' }}" placeholder="z.B. Max Vermieter">
-  <div class="grid-2">
-    <div><label>Straße</label><input name="absender_strasse" value="{{ objekt.absender_strasse or '' }}"></div>
-    <div><label>PLZ / Ort</label>
-      <div style="display:flex; gap:0.5rem;">
-        <input name="absender_plz" value="{{ objekt.absender_plz or '' }}" style="max-width:100px">
-        <input name="absender_ort" value="{{ objekt.absender_ort or '' }}">
-      </div>
-    </div>
-  </div>
-  <div class="grid-2">
-    <div><label>Telefon</label><input name="absender_telefon" value="{{ objekt.absender_telefon or '' }}"></div>
-    <div><label>E-Mail</label><input name="absender_email" type="text" value="{{ objekt.absender_email or '' }}"></div>
-  </div>
-  <div class="grid-2">
-    <div><label>Bank</label><input name="bank_name" value="{{ objekt.bank_name or '' }}"></div>
-    <div></div>
-  </div>
-  <div class="grid-2">
-    <div><label>IBAN</label><input name="bank_iban" value="{{ objekt.bank_iban or '' }}"></div>
-    <div><label>BIC</label><input name="bank_bic" value="{{ objekt.bank_bic or '' }}"></div>
-  </div>
 
   <button type="submit">Speichern</button>
 </form>
@@ -123,11 +136,11 @@ anlegen. Kalt- und Warmwasser separat. Bei Zählertausch den alten Zähler mit A
 und einen neuen mit gleicher Bezeichnung und Einbaudatum anlegen – die Verbrauchsberechnung
 verkettet das automatisch.</p>
 <table>
-  <tr><th>Typ</th><th>Zapfstelle</th><th>Zählernummer</th><th>Einbau</th><th>Ausbau</th><th>Ablesungen</th><th></th></tr>
+  <tr><th style="width:130px;">Typ</th><th>Zapfstelle</th><th>Zählernummer</th><th>Einbau</th><th>Ausbau</th><th style="width:110px;">Ablesungen</th><th></th></tr>
   {% for z in objekt.zaehler|sort(attribute="typ") %}
   <tr>
     <td>
-      <select name="typ" form="zaehler-edit-{{ z.id }}" required>
+      <select name="typ" form="zaehler-edit-{{ z.id }}" required style="min-width:110px;">
         <option value="Kaltwasser" {% if z.typ == "Kaltwasser" %}selected{% endif %}>Kaltwasser</option>
         <option value="Warmwasser" {% if z.typ == "Warmwasser" %}selected{% endif %}>Warmwasser</option>
         <option value="Waerme" {% if z.typ == "Waerme" %}selected{% endif %}>Wärme</option>
@@ -138,7 +151,7 @@ verkettet das automatisch.</p>
     <td><input name="zaehlernummer" form="zaehler-edit-{{ z.id }}" value="{{ z.zaehlernummer or '' }}"></td>
     <td><input name="einbaudatum" form="zaehler-edit-{{ z.id }}" type="date" value="{{ z.einbaudatum or '' }}"></td>
     <td><input name="ausbaudatum" form="zaehler-edit-{{ z.id }}" type="date" value="{{ z.ausbaudatum or '' }}"></td>
-    <td><a href="/zaehler/{{ z.id }}">{{ z.ablesungen|length }} Ablesung(en)</a></td>
+    <td style="white-space:nowrap;"><a href="/zaehler/{{ z.id }}">{{ z.ablesungen|length }} Ablesung(en)</a></td>
     <td>
       <div class="row-actions">
         <button type="submit" form="zaehler-edit-{{ z.id }}" class="btn">Speichern</button>
@@ -179,9 +192,9 @@ verkettet das automatisch.</p>
   </form>
 </details>
 
-<h2>Jahresabrechnungen</h2>
+<h2 id="jahresabrechnungen">Jahresabrechnungen</h2>
 <table>
-  <tr><th>Jahr</th><th>Zeitraum</th><th>Status</th><th></th></tr>
+  <tr><th>Jahr</th><th>Zeitraum</th><th>Status</th><th>Schutz</th><th></th></tr>
   {% for ja in objekt.jahresabrechnungen|sort(attribute="jahr") %}
   <tr>
     <td>{{ ja.jahr }}</td>
@@ -190,10 +203,20 @@ verkettet das automatisch.</p>
       {% if ja.status == "berechnet" %}<span class="badge ok">berechnet</span>
       {% else %}<span class="badge">erfasst</span>{% endif %}
     </td>
+    <td>
+      <form class="inline" method="post" action="/jahresabrechnungen/{{ ja.id }}/sperren">
+        <input type="hidden" name="ziel" value="objekt">
+        {% if ja.gesperrt %}
+        <button type="submit" class="btn" title="Gegen Änderungen geschützt – klicken zum Entsperren">🔒 gesperrt</button>
+        {% else %}
+        <button type="submit" class="btn" title="Nicht geschützt – klicken zum Sperren">🔓 offen</button>
+        {% endif %}
+      </form>
+    </td>
     <td><a class="btn" href="/jahresabrechnungen/{{ ja.id }}">Öffnen</a></td>
   </tr>
   {% else %}
-  <tr><td colspan="4" class="muted">Noch keine Jahresabrechnung.</td></tr>
+  <tr><td colspan="5" class="muted">Noch keine Jahresabrechnung.</td></tr>
   {% endfor %}
 </table>
 

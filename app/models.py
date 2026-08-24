@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import (
     Column, Integer, String, Float, Boolean, Date, DateTime, ForeignKey, Text,
@@ -8,21 +8,116 @@ from sqlalchemy.orm import relationship
 from .database import Base
 
 
-class Verwaltung(Base):
-    __tablename__ = "verwaltung"
+class Kontakt(Base):
+    """Zentrales Adressbuch: eine Person oder Firma, die in einer oder
+    mehreren Rollen auftreten kann - als Eigentuemer und/oder Verwaltung
+    eines oder mehrerer Objekte, oder als Mieter (ueber
+    MietverhaeltnisKontakt). Ein Kontakt muss nur einmal angelegt werden und
+    laesst sich beliebig oft wiederverwenden, statt Adressdaten mehrfach
+    einzutippen."""
+    __tablename__ = "kontakt"
 
     id = Column(Integer, primary_key=True)
-    name = Column(String, nullable=False)
-    ansprechpartner_anrede = Column(String)
-    ansprechpartner_name = Column(String)
+    ist_firma = Column(Boolean, default=False, nullable=False)
+    anrede = Column(String)
+    vorname = Column(String)
+    nachname = Column(String)
+    firma_name = Column(String)
+    telefon = Column(String)
+    email = Column(String)
+    # Bankdaten - i.d.R. nur relevant, wenn der Kontakt als Eigentuemer
+    # (Empfaenger von Nachzahlungen/Absender im PDF-Anschreiben) verwendet wird.
+    bank_name = Column(String)
+    bank_iban = Column(String)
+    bank_bic = Column(String)
+    notizen = Column(Text)
+    # Rollen-Flags: rein informativ/zur Vorfilterung der Auswahllisten in
+    # den jeweiligen Formularen gedacht (z.B. zeigt die Eigentuemer-Auswahl
+    # am Objekt nur Kontakte mit ist_eigentuemer=True) - schliessen sich
+    # NICHT gegenseitig aus, ein Kontakt kann mehrere Rollen gleichzeitig
+    # haben (z.B. Verwaltung UND Handwerker).
+    ist_mieter = Column(Boolean, default=False, nullable=False)
+    ist_eigentuemer = Column(Boolean, default=False, nullable=False)
+    ist_verwalter = Column(Boolean, default=False, nullable=False)
+    ist_handwerker = Column(Boolean, default=False, nullable=False)
+
+    adressen = relationship(
+        "KontaktAdresse", back_populates="kontakt", cascade="all, delete-orphan",
+        order_by="KontaktAdresse.gueltig_von",
+    )
+    objekte_als_eigentuemer = relationship(
+        "Objekt", back_populates="eigentuemer", foreign_keys="Objekt.eigentuemer_id",
+    )
+    objekte_als_verwaltung = relationship(
+        "Objekt", back_populates="verwaltung", foreign_keys="Objekt.verwaltung_id",
+    )
+    mietverhaeltnis_links = relationship(
+        "MietverhaeltnisKontakt", back_populates="kontakt", cascade="all, delete-orphan",
+    )
+
+    @property
+    def anzeige_name(self) -> str:
+        if self.ist_firma and self.firma_name:
+            return self.firma_name
+        name = f"{self.vorname or ''} {self.nachname or ''}".strip()
+        return name or self.firma_name or "(ohne Namen)"
+
+    @property
+    def aktuelle_adresse(self):
+        """Die aktuell gueltige Adresse (gueltig_von in der Vergangenheit/
+        heute, gueltig_bis leer oder in der Zukunft). Gibt es keine aktuell
+        laufende, wird die zuletzt gueltige zurueckgegeben (z.B. eine
+        Vor-Adresse, die zwar "beendet" ist, aber noch die einzige bekannte
+        Anschrift darstellt). None, wenn ueberhaupt keine Adresse erfasst ist."""
+        if not self.adressen:
+            return None
+        heute = date.today()
+        laufende = [
+            a for a in self.adressen
+            if (a.gueltig_von is None or a.gueltig_von <= heute)
+            and (a.gueltig_bis is None or a.gueltig_bis >= heute)
+        ]
+        kandidaten = laufende or list(self.adressen)
+        return sorted(kandidaten, key=lambda a: a.gueltig_von or date.min)[-1]
+
+
+class KontaktAdresse(Base):
+    """Eine Adresse eines Kontakts mit Gueltigkeitszeitraum - ein Kontakt
+    kann im Lauf der Zeit mehrere Adressen haben (z.B. ein Mieter: Adresse
+    vor Einzug, dann nach Auszug eine neue). gueltig_von/gueltig_bis = NULL
+    bedeutet "schon immer" bzw. "bis auf Weiteres/aktuell"."""
+    __tablename__ = "kontakt_adresse"
+
+    id = Column(Integer, primary_key=True)
+    kontakt_id = Column(Integer, ForeignKey("kontakt.id"), nullable=False)
     strasse = Column(String)
     plz = Column(String)
     ort = Column(String)
-    telefon = Column(String)
-    email = Column(String)
-    notizen = Column(Text)
+    gueltig_von = Column(Date, nullable=True)
+    gueltig_bis = Column(Date, nullable=True)
+    notizen = Column(String)
 
-    objekte = relationship("Objekt", back_populates="verwaltung")
+    kontakt = relationship("Kontakt", back_populates="adressen")
+
+
+class MietverhaeltnisKontakt(Base):
+    """Verknuepft ein Mietverhaeltnis mit einem oder mehreren Kontakten
+    (Mietern, z.B. bei einer WG) - als eigene n:m-Tabelle, damit derselbe
+    Kontakt theoretisch auch in mehreren Mietverhaeltnissen auftauchen kann
+    (z.B. jemand mietet nach Auszug spaeter eine andere Wohnung im selben
+    Portfolio)."""
+    __tablename__ = "mietverhaeltnis_kontakt"
+
+    id = Column(Integer, primary_key=True)
+    mietverhaeltnis_id = Column(Integer, ForeignKey("mietverhaeltnis.id"), nullable=False)
+    kontakt_id = Column(Integer, ForeignKey("kontakt.id"), nullable=False)
+
+    mietverhaeltnis = relationship("Mietverhaeltnis", back_populates="kontakt_links")
+    kontakt = relationship("Kontakt", back_populates="mietverhaeltnis_links")
+
+    __table_args__ = (
+        UniqueConstraint("mietverhaeltnis_id", "kontakt_id", name="uq_mv_kontakt"),
+    )
 
 
 class Objekt(Base):
@@ -36,27 +131,36 @@ class Objekt(Base):
     flurstueck = Column(String)
     wohnflaeche_qm = Column(Float)
     miteigentumsanteil = Column(String)  # z.B. "45,3/1000"
+    # Anzahl der Gesamtanteile (Nenner), auf die der Miteigentumsanteil sich
+    # bezieht - bei kleineren WEGs meist 1000, bei sehr grossen Anlagen aber
+    # z.B. auch 1000000. Bewusst als eigenes Feld statt fest angenommen,
+    # da sich der Nenner von Objekt zu Objekt unterscheiden kann.
+    gesamtanteile = Column(Float, nullable=True)
     hausgeld_monatlich = Column(Float)
-    verwaltung_id = Column(Integer, ForeignKey("verwaltung.id"), nullable=True)
+    # Aktenzeichen des Finanzamts fuer den Einheitswert dieser Wohneinheit
+    # (alphanumerisch, z.B. "12/345/67890"), sowie der jaehrliche AfA-Betrag
+    # (Absetzung fuer Abnutzung, § 7 EStG) in Euro - beides rein informativ
+    # fuer die steuerliche Zuordnung, ohne Einfluss auf die
+    # Nebenkostenabrechnung selbst.
+    ew_aktenzeichen = Column(String, nullable=True)
+    afa_jahresbetrag = Column(Float, nullable=True)
+    # Eigentuemer: Absender/Bankdaten fuer die PDF-Nebenkostenabrechnung
+    # kommen jetzt aus dem verknuepften Kontakt (Adressbuch), statt pro
+    # Objekt einzeln eingetippt zu werden - mehrere Objekte desselben
+    # Eigentuemers koennen so denselben Kontakt referenzieren.
+    eigentuemer_id = Column(Integer, ForeignKey("kontakt.id"), nullable=True)
+    verwaltung_id = Column(Integer, ForeignKey("kontakt.id"), nullable=True)
     # Monat (1-12), in dem das Abrechnungsjahr beginnt. 1 = Kalenderjahr
     # (1.1.-31.12.), z.B. 7 = Wirtschaftsjahr 1.7.-30.6. des Folgejahres.
     abrechnung_start_monat = Column(Integer, nullable=False, default=1)
     notizen = Column(Text)
 
-    # Absenderdaten (Vermieter) fuer den Briefkopf der PDF-Nebenkostenabrechnung.
-    # Pro Objekt gepflegt, da unterschiedliche Objekte unterschiedliche
-    # Absender/Bankverbindungen haben koennen.
-    absender_name = Column(String)
-    absender_strasse = Column(String)
-    absender_plz = Column(String)
-    absender_ort = Column(String)
-    absender_telefon = Column(String)
-    absender_email = Column(String)
-    bank_name = Column(String)
-    bank_iban = Column(String)
-    bank_bic = Column(String)
-
-    verwaltung = relationship("Verwaltung", back_populates="objekte")
+    eigentuemer = relationship(
+        "Kontakt", back_populates="objekte_als_eigentuemer", foreign_keys=[eigentuemer_id],
+    )
+    verwaltung = relationship(
+        "Kontakt", back_populates="objekte_als_verwaltung", foreign_keys=[verwaltung_id],
+    )
     mietverhaeltnisse = relationship(
         "Mietverhaeltnis", back_populates="objekt", cascade="all, delete-orphan"
     )
@@ -69,6 +173,17 @@ class Objekt(Base):
     leerstaende = relationship(
         "Leerstand", back_populates="objekt", cascade="all, delete-orphan"
     )
+
+    @property
+    def aktuelles_mietverhaeltnis(self):
+        """Das gerade laufende Mietverhaeltnis (auszug ist leer), oder None
+        bei Leerstand/wenn keins erfasst ist. Bei (regulaer nicht
+        vorkommenden) mehreren gleichzeitig laufenden Mietverhaeltnissen
+        wird das mit dem juengsten Einzug zurueckgegeben."""
+        laufende = [mv for mv in self.mietverhaeltnisse if mv.auszug is None]
+        if not laufende:
+            return None
+        return sorted(laufende, key=lambda mv: mv.einzug)[-1]
 
 
 class Mietverhaeltnis(Base):
@@ -90,6 +205,12 @@ class Mietverhaeltnis(Base):
     # ggf. "z. Hd." mit Ansprechpartner aus den Personen).
     ist_firma = Column(Boolean, default=False, nullable=False)
     firma_name = Column(String, nullable=True)
+    # Optionaler, von den Mieternamen unabhaengiger Anzeigename fuer das
+    # Mietverhaeltnis (z.B. "Schuster/Wilhelm" bei einer WG mit anderem
+    # Wunschnamen, oder ein Kuerzel). Ist er gesetzt, hat er in anzeige_name
+    # Vorrang vor den automatisch aus den verknuepften Personen
+    # zusammengesetzten Namen (bzw. dem Firmennamen).
+    bezeichnung = Column(String, nullable=True)
     # Abweichende Rechnungsadresse fuer die Nebenkostenabrechnung, z.B. wenn
     # sie an eine Verwaltung/Buchhaltung statt an den Mieter selbst gehen
     # soll - hat im PDF-Anschreiben Vorrang vor der sonst automatisch
@@ -102,13 +223,29 @@ class Mietverhaeltnis(Base):
     notizen = Column(Text)
 
     objekt = relationship("Objekt", back_populates="mietverhaeltnisse")
-    personen = relationship(
-        "Person", back_populates="mietverhaeltnis", cascade="all, delete-orphan",
-        order_by="Person.id",
+    kontakt_links = relationship(
+        "MietverhaeltnisKontakt", back_populates="mietverhaeltnis", cascade="all, delete-orphan",
+        order_by="MietverhaeltnisKontakt.id",
     )
     personenzahlen = relationship(
         "Personenzahl", back_populates="mietverhaeltnis", cascade="all, delete-orphan",
         order_by="Personenzahl.ab_datum",
+    )
+    # Vorauszahlungen sind tatsaechlich erhaltene Zahlungen - die duerfen
+    # NIEMALS stillschweigend mitgeloescht werden (siehe Loeschen-Route in
+    # main.py: dort wird VOR jedem Loeschversuch explizit geprueft, ob
+    # bereits Vorauszahlungen erfasst sind, und in dem Fall abgebrochen).
+    # Bewusst OHNE cascade="delete-orphan" - bleibt trotzdem eine Relation
+    # ohne Cascade (nicht "cascade='all'"), damit ein direktes db.delete(mv)
+    # ohne vorherige Pruefung an der Fremdschluessel-Pruefung scheitert
+    # (PRAGMA foreign_keys=ON, siehe app/database.py) statt Zahlungsdaten
+    # zu verlieren - ein bewusstes zweites Sicherheitsnetz.
+    vorauszahlungen = relationship("Vorauszahlung", back_populates="mietverhaeltnis")
+    # Mieterabrechnungen sind reine Berechnungsergebnisse (jederzeit per
+    # "Jahresabrechnung neu berechnen" reproduzierbar), daher unbedenklich
+    # mit cascade mitzuloeschen.
+    mieterabrechnungen = relationship(
+        "Mieterabrechnung", back_populates="mietverhaeltnis", cascade="all, delete-orphan",
     )
 
     @property
@@ -120,36 +257,29 @@ class Mietverhaeltnis(Base):
         return sorted(self.personenzahlen, key=lambda p: p.ab_datum)[-1].anzahl_personen
 
     @property
+    def personen(self) -> list:
+        """Die Mieter-Kontakte dieses Mietverhaeltnisses (z.B. bei einer WG
+        mehrere), in der Reihenfolge, in der sie verknuepft wurden. Liefert
+        Kontakt-Objekte (nicht mehr ein eigenes Person-Modell) - die Felder
+        anrede/vorname/nachname/email/telefon sind dieselben, daher
+        funktioniert bestehender Code, der z.B. "for p in mv.personen"
+        macht, unveraendert weiter."""
+        return [link.kontakt for link in self.kontakt_links]
+
+    @property
     def anzeige_name(self) -> str:
-        """Zusammengesetzter Name aller Personen des Mietverhaeltnisses,
-        z.B. bei einer WG: 'Max Mustermann / Erika Musterfrau'. Bei
-        gewerblicher Vermietung stattdessen der Firmenname."""
+        """Anzeigename des Mietverhaeltnisses. Prioritaet: 1. die frei
+        vergebene "bezeichnung" (z.B. "Schuster/Wilhelm", falls von den
+        eigentlichen Mieternamen abweichend gewuenscht), 2. bei
+        gewerblicher Vermietung der Firmenname, 3. sonst der automatisch
+        aus den verknuepften Personen zusammengesetzte Name, z.B. bei einer
+        WG: 'Max Mustermann / Erika Musterfrau'."""
+        if self.bezeichnung:
+            return self.bezeichnung
         if self.ist_firma and self.firma_name:
             return self.firma_name
-        namen = [f"{p.vorname} {p.nachname}".strip() for p in self.personen]
+        namen = [f"{p.vorname or ''} {p.nachname or ''}".strip() for p in self.personen]
         return " / ".join(namen) if namen else "(keine Person erfasst)"
-
-
-class Person(Base):
-    """Eine Person innerhalb eines Mietverhaeltnisses. Ein Mietverhaeltnis
-    kann beliebig viele Personen haben (z.B. Wohngemeinschaft)."""
-    __tablename__ = "person"
-
-    id = Column(Integer, primary_key=True)
-    mietverhaeltnis_id = Column(Integer, ForeignKey("mietverhaeltnis.id"), nullable=False)
-    anrede = Column(String)
-    vorname = Column(String, nullable=False)
-    nachname = Column(String, nullable=False)
-    email = Column(String)
-    telefon = Column(String)
-    adresse_vor_strasse = Column(String)
-    adresse_vor_plz = Column(String)
-    adresse_vor_ort = Column(String)
-    adresse_nach_strasse = Column(String)
-    adresse_nach_plz = Column(String)
-    adresse_nach_ort = Column(String)
-
-    mietverhaeltnis = relationship("Mietverhaeltnis", back_populates="personen")
 
 
 class Personenzahl(Base):
@@ -201,6 +331,10 @@ class Jahresabrechnung(Base):
     # Kontrollsumme gegen die selbst erfassten Abrechnungspositionen.
     hv_gesamtbetrag = Column(Float, nullable=True)
     notizen = Column(Text)
+    # Schutz gegen unabsichtliche Änderungen: wenn gesetzt, blockieren alle
+    # aendernden Routen (Positionen, Vorauszahlungen, Berechnung, Löschen) und
+    # verlangen zuerst ein explizites Entsperren.
+    gesperrt = Column(Boolean, default=False, nullable=False)
 
     __table_args__ = (UniqueConstraint("objekt_id", "jahr", name="uq_objekt_jahr"),)
 
@@ -256,7 +390,7 @@ class Vorauszahlung(Base):
     bemerkung = Column(String)  # z.B. "Jan-Mai" oder "ab Anpassung Juni"
 
     jahresabrechnung = relationship("Jahresabrechnung", back_populates="vorauszahlungen")
-    mietverhaeltnis = relationship("Mietverhaeltnis")
+    mietverhaeltnis = relationship("Mietverhaeltnis", back_populates="vorauszahlungen")
 
     @property
     def summe(self) -> float:
@@ -311,7 +445,7 @@ class Mieterabrechnung(Base):
     summe_vorauszahlung = Column(Float, nullable=False, default=0.0)
 
     jahresabrechnung = relationship("Jahresabrechnung", back_populates="mieterabrechnungen")
-    mietverhaeltnis = relationship("Mietverhaeltnis")
+    mietverhaeltnis = relationship("Mietverhaeltnis", back_populates="mieterabrechnungen")
     positionen = relationship(
         "Mieterabrechnungsposition", back_populates="mieterabrechnung",
         cascade="all, delete-orphan"

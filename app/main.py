@@ -5,6 +5,7 @@ import io
 import os
 from datetime import datetime, date, timedelta
 from typing import Optional
+from urllib.parse import quote
 
 from fastapi import FastAPI, Request, Depends, Form
 from fastapi.responses import RedirectResponse, StreamingResponse
@@ -103,97 +104,189 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
     )
 
 
-# --------------------------------------------------------------- Verwaltung
-@app.get("/verwaltungen")
-def verwaltungen_list(request: Request, db: Session = Depends(get_db)):
-    verwaltungen = db.query(models.Verwaltung).order_by(models.Verwaltung.name).all()
+# ------------------------------------------------------------------ Kontakt
+# Zentrales Adressbuch: ersetzt die frueher getrennten Konzepte Verwaltung
+# und Person. Ein Kontakt kann gleichzeitig Eigentuemer und/oder Verwaltung
+# mehrerer Objekte sein, und/oder Mieter in einem oder mehreren
+# Mietverhaeltnissen - jeweils per Fremdschluessel/Verknuepfungstabelle
+# referenziert, ohne die Adressdaten zu duplizieren.
+@app.get("/kontakte")
+def kontakte_list(request: Request, db: Session = Depends(get_db)):
+    kontakte = db.query(models.Kontakt).order_by(models.Kontakt.nachname, models.Kontakt.firma_name).all()
     return templates.TemplateResponse(
-        "verwaltungen.html", {"request": request, "verwaltungen": verwaltungen}
+        "kontakte.html", {"request": request, "kontakte": kontakte}
     )
 
 
-@app.post("/verwaltungen/neu")
-def verwaltung_neu(
-    name: str = Form(...),
-    ansprechpartner_anrede: str = Form(""),
-    ansprechpartner_name: str = Form(""),
+@app.post("/kontakte/neu")
+def kontakt_neu(
+    ist_firma: str = Form(""),
+    anrede: str = Form(""),
+    vorname: str = Form(""),
+    nachname: str = Form(""),
+    firma_name: str = Form(""),
+    telefon: str = Form(""),
+    email: str = Form(""),
+    bank_name: str = Form(""),
+    bank_iban: str = Form(""),
+    bank_bic: str = Form(""),
+    notizen: str = Form(""),
     strasse: str = Form(""),
     plz: str = Form(""),
     ort: str = Form(""),
-    telefon: str = Form(""),
-    email: str = Form(""),
-    notizen: str = Form(""),
+    ist_mieter: str = Form(""),
+    ist_eigentuemer: str = Form(""),
+    ist_verwalter: str = Form(""),
+    ist_handwerker: str = Form(""),
     db: Session = Depends(get_db),
 ):
-    db.add(models.Verwaltung(
-        name=name, ansprechpartner_anrede=ansprechpartner_anrede,
-        ansprechpartner_name=ansprechpartner_name, strasse=strasse, plz=plz,
-        ort=ort, telefon=telefon, email=email, notizen=notizen,
-    ))
+    k = models.Kontakt(
+        ist_firma=bool(ist_firma), anrede=anrede or None, vorname=vorname or None,
+        nachname=nachname or None, firma_name=firma_name or None,
+        telefon=telefon or None, email=email or None,
+        bank_name=bank_name or None, bank_iban=bank_iban or None, bank_bic=bank_bic or None,
+        notizen=notizen or None,
+        ist_mieter=bool(ist_mieter), ist_eigentuemer=bool(ist_eigentuemer),
+        ist_verwalter=bool(ist_verwalter), ist_handwerker=bool(ist_handwerker),
+    )
+    db.add(k)
+    db.flush()
+    if strasse or plz or ort:
+        db.add(models.KontaktAdresse(kontakt_id=k.id, strasse=strasse, plz=plz, ort=ort))
     db.commit()
-    return RedirectResponse("/verwaltungen", status_code=303)
+    return RedirectResponse(f"/kontakte/{k.id}", status_code=303)
 
 
-@app.get("/verwaltungen/{verwaltung_id}")
-def verwaltung_detail(request: Request, verwaltung_id: int, db: Session = Depends(get_db)):
-    v = db.get(models.Verwaltung, verwaltung_id)
+@app.get("/kontakte/{kontakt_id}")
+def kontakt_detail(request: Request, kontakt_id: int, db: Session = Depends(get_db)):
+    k = db.get(models.Kontakt, kontakt_id)
     historie = (
         db.query(models.AenderungHistorie)
-        .filter_by(entity_typ="Verwaltung", entity_id=verwaltung_id)
+        .filter_by(entity_typ="Kontakt", entity_id=kontakt_id)
         .order_by(models.AenderungHistorie.geaendert_am.desc())
         .all()
     )
     return templates.TemplateResponse(
-        "verwaltung_detail.html", {"request": request, "v": v, "historie": historie}
+        "kontakt_detail.html", {"request": request, "k": k, "historie": historie}
     )
 
 
-@app.post("/verwaltungen/{verwaltung_id}/bearbeiten")
-def verwaltung_bearbeiten(
-    verwaltung_id: int,
-    name: str = Form(...),
-    ansprechpartner_anrede: str = Form(""),
-    ansprechpartner_name: str = Form(""),
+@app.post("/kontakte/{kontakt_id}/bearbeiten")
+def kontakt_bearbeiten(
+    kontakt_id: int,
+    ist_firma: str = Form(""),
+    anrede: str = Form(""),
+    vorname: str = Form(""),
+    nachname: str = Form(""),
+    firma_name: str = Form(""),
+    telefon: str = Form(""),
+    email: str = Form(""),
+    bank_name: str = Form(""),
+    bank_iban: str = Form(""),
+    bank_bic: str = Form(""),
+    notizen: str = Form(""),
+    ist_mieter: str = Form(""),
+    ist_eigentuemer: str = Form(""),
+    ist_verwalter: str = Form(""),
+    ist_handwerker: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    k = db.get(models.Kontakt, kontakt_id)
+    neu = {
+        "ist_firma": bool(ist_firma), "anrede": anrede or None, "vorname": vorname or None,
+        "nachname": nachname or None, "firma_name": firma_name or None,
+        "telefon": telefon or None, "email": email or None,
+        "bank_name": bank_name or None, "bank_iban": bank_iban or None,
+        "bank_bic": bank_bic or None, "notizen": notizen or None,
+        "ist_mieter": bool(ist_mieter), "ist_eigentuemer": bool(ist_eigentuemer),
+        "ist_verwalter": bool(ist_verwalter), "ist_handwerker": bool(ist_handwerker),
+    }
+    alt = {feld: getattr(k, feld) for feld in neu}
+    log_aenderungen(db, "Kontakt", kontakt_id, alt, neu)
+    for feld, wert in neu.items():
+        setattr(k, feld, wert)
+    db.commit()
+    return RedirectResponse(f"/kontakte/{kontakt_id}", status_code=303)
+
+
+@app.post("/kontakte/{kontakt_id}/loeschen")
+def kontakt_loeschen(kontakt_id: int, db: Session = Depends(get_db)):
+    k = db.get(models.Kontakt, kontakt_id)
+    if k:
+        # Referenzen an Objekten loesen (nicht die Objekte selbst loeschen) -
+        # Mietverhaeltnis-Verknuepfungen werden ueber die cascade-Konfiguration
+        # am Kontakt-Modell automatisch mit entfernt.
+        for o in list(k.objekte_als_eigentuemer):
+            o.eigentuemer_id = None
+        for o in list(k.objekte_als_verwaltung):
+            o.verwaltung_id = None
+        db.delete(k)
+        db.commit()
+    return RedirectResponse("/kontakte", status_code=303)
+
+
+@app.post("/kontakte/{kontakt_id}/adresse/neu")
+def kontakt_adresse_neu(
+    kontakt_id: int,
     strasse: str = Form(""),
     plz: str = Form(""),
     ort: str = Form(""),
-    telefon: str = Form(""),
-    email: str = Form(""),
+    gueltig_von: str = Form(""),
+    gueltig_bis: str = Form(""),
     notizen: str = Form(""),
     db: Session = Depends(get_db),
 ):
-    v = db.get(models.Verwaltung, verwaltung_id)
-    neu = {
-        "name": name, "ansprechpartner_anrede": ansprechpartner_anrede,
-        "ansprechpartner_name": ansprechpartner_name, "strasse": strasse,
-        "plz": plz, "ort": ort, "telefon": telefon, "email": email,
-        "notizen": notizen,
-    }
-    alt = {feld: getattr(v, feld) for feld in neu}
-    log_aenderungen(db, "Verwaltung", verwaltung_id, alt, neu)
-    for feld, wert in neu.items():
-        setattr(v, feld, wert)
+    db.add(models.KontaktAdresse(
+        kontakt_id=kontakt_id, strasse=strasse, plz=plz, ort=ort,
+        gueltig_von=parse_date(gueltig_von), gueltig_bis=parse_date(gueltig_bis),
+        notizen=notizen or None,
+    ))
     db.commit()
-    return RedirectResponse(f"/verwaltungen/{verwaltung_id}", status_code=303)
+    return RedirectResponse(f"/kontakte/{kontakt_id}#adressen", status_code=303)
 
 
-@app.post("/verwaltungen/{verwaltung_id}/loeschen")
-def verwaltung_loeschen(verwaltung_id: int, db: Session = Depends(get_db)):
-    v = db.get(models.Verwaltung, verwaltung_id)
-    if v:
-        db.delete(v)
+@app.post("/kontakt-adresse/{adresse_id}/bearbeiten")
+def kontakt_adresse_bearbeiten(
+    adresse_id: int,
+    strasse: str = Form(""),
+    plz: str = Form(""),
+    ort: str = Form(""),
+    gueltig_von: str = Form(""),
+    gueltig_bis: str = Form(""),
+    notizen: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    a = db.get(models.KontaktAdresse, adresse_id)
+    kontakt_id = a.kontakt_id if a else None
+    if a:
+        a.strasse = strasse
+        a.plz = plz
+        a.ort = ort
+        a.gueltig_von = parse_date(gueltig_von)
+        a.gueltig_bis = parse_date(gueltig_bis)
+        a.notizen = notizen or None
         db.commit()
-    return RedirectResponse("/verwaltungen", status_code=303)
+    return RedirectResponse(f"/kontakte/{kontakt_id}#adressen", status_code=303)
+
+
+@app.post("/kontakt-adresse/{adresse_id}/loeschen")
+def kontakt_adresse_loeschen(adresse_id: int, db: Session = Depends(get_db)):
+    a = db.get(models.KontaktAdresse, adresse_id)
+    kontakt_id = a.kontakt_id if a else None
+    if a:
+        db.delete(a)
+        db.commit()
+    return RedirectResponse(f"/kontakte/{kontakt_id}#adressen", status_code=303)
 
 
 # -------------------------------------------------------------------- Objekt
 @app.get("/objekte")
 def objekte_list(request: Request, db: Session = Depends(get_db)):
     objekte = db.query(models.Objekt).order_by(models.Objekt.bezeichnung).all()
-    verwaltungen = db.query(models.Verwaltung).order_by(models.Verwaltung.name).all()
+    kontakte = db.query(models.Kontakt).order_by(models.Kontakt.nachname, models.Kontakt.firma_name).all()
     return templates.TemplateResponse(
         "objekte.html",
-        {"request": request, "objekte": objekte, "verwaltungen": verwaltungen, "monate": MONATE},
+        {"request": request, "objekte": objekte, "kontakte": kontakte, "monate": MONATE},
     )
 
 
@@ -206,7 +299,11 @@ def objekt_neu(
     flurstueck: str = Form(""),
     wohnflaeche_qm: str = Form(""),
     miteigentumsanteil: str = Form(""),
+    gesamtanteile: str = Form(""),
     hausgeld_monatlich: str = Form(""),
+    ew_aktenzeichen: str = Form(""),
+    afa_jahresbetrag: str = Form(""),
+    eigentuemer_id: str = Form(""),
     verwaltung_id: str = Form(""),
     abrechnung_start_monat: str = Form("1"),
     notizen: str = Form(""),
@@ -217,7 +314,11 @@ def objekt_neu(
         flurstueck=flurstueck,
         wohnflaeche_qm=float(wohnflaeche_qm.replace(",", ".")) if wohnflaeche_qm else None,
         miteigentumsanteil=miteigentumsanteil,
+        gesamtanteile=float(gesamtanteile.replace(",", ".")) if gesamtanteile else None,
         hausgeld_monatlich=float(hausgeld_monatlich.replace(",", ".")) if hausgeld_monatlich else None,
+        ew_aktenzeichen=ew_aktenzeichen or None,
+        afa_jahresbetrag=float(afa_jahresbetrag.replace(",", ".")) if afa_jahresbetrag else None,
+        eigentuemer_id=int(eigentuemer_id) if eigentuemer_id else None,
         verwaltung_id=int(verwaltung_id) if verwaltung_id else None,
         abrechnung_start_monat=int(abrechnung_start_monat) if abrechnung_start_monat else 1,
         notizen=notizen,
@@ -240,12 +341,12 @@ def objekt_loeschen(objekt_id: int, db: Session = Depends(get_db)):
 def objekt_detail(request: Request, objekt_id: int, db: Session = Depends(get_db)):
     objekt = db.get(models.Objekt, objekt_id)
     kostenarten = db.query(models.Kostenart).order_by(models.Kostenart.bezeichnung).all()
-    verwaltungen = db.query(models.Verwaltung).order_by(models.Verwaltung.name).all()
+    kontakte = db.query(models.Kontakt).order_by(models.Kontakt.nachname, models.Kontakt.firma_name).all()
     neu = bool(request.query_params.get("neu"))
     return templates.TemplateResponse(
         "objekt_detail.html",
         {"request": request, "objekt": objekt, "kostenarten": kostenarten,
-         "verwaltungen": verwaltungen, "monate": MONATE, "neu": neu},
+         "kontakte": kontakte, "monate": MONATE, "neu": neu},
     )
 
 
@@ -259,19 +360,14 @@ def objekt_bearbeiten(
     flurstueck: str = Form(""),
     wohnflaeche_qm: str = Form(""),
     miteigentumsanteil: str = Form(""),
+    gesamtanteile: str = Form(""),
     hausgeld_monatlich: str = Form(""),
+    ew_aktenzeichen: str = Form(""),
+    afa_jahresbetrag: str = Form(""),
+    eigentuemer_id: str = Form(""),
     verwaltung_id: str = Form(""),
     abrechnung_start_monat: str = Form("1"),
     notizen: str = Form(""),
-    absender_name: str = Form(""),
-    absender_strasse: str = Form(""),
-    absender_plz: str = Form(""),
-    absender_ort: str = Form(""),
-    absender_telefon: str = Form(""),
-    absender_email: str = Form(""),
-    bank_name: str = Form(""),
-    bank_iban: str = Form(""),
-    bank_bic: str = Form(""),
     db: Session = Depends(get_db),
 ):
     o = db.get(models.Objekt, objekt_id)
@@ -282,19 +378,14 @@ def objekt_bearbeiten(
     o.flurstueck = flurstueck
     o.wohnflaeche_qm = float(wohnflaeche_qm.replace(",", ".")) if wohnflaeche_qm else None
     o.miteigentumsanteil = miteigentumsanteil
+    o.gesamtanteile = float(gesamtanteile.replace(",", ".")) if gesamtanteile else None
     o.hausgeld_monatlich = float(hausgeld_monatlich.replace(",", ".")) if hausgeld_monatlich else None
+    o.ew_aktenzeichen = ew_aktenzeichen or None
+    o.afa_jahresbetrag = float(afa_jahresbetrag.replace(",", ".")) if afa_jahresbetrag else None
+    o.eigentuemer_id = int(eigentuemer_id) if eigentuemer_id else None
     o.verwaltung_id = int(verwaltung_id) if verwaltung_id else None
     o.abrechnung_start_monat = int(abrechnung_start_monat) if abrechnung_start_monat else 1
     o.notizen = notizen
-    o.absender_name = absender_name
-    o.absender_strasse = absender_strasse
-    o.absender_plz = absender_plz
-    o.absender_ort = absender_ort
-    o.absender_telefon = absender_telefon
-    o.absender_email = absender_email
-    o.bank_name = bank_name
-    o.bank_iban = bank_iban
-    o.bank_bic = bank_bic
     db.commit()
     return RedirectResponse(f"/objekte/{objekt_id}", status_code=303)
 
@@ -423,35 +514,98 @@ def mieter_list(request: Request, objekt_id: str = "", db: Session = Depends(get
 
 
 PERSON_FELDER = [
-    "anrede", "vorname", "nachname", "email", "telefon",
-    "adresse_vor_strasse", "adresse_vor_plz", "adresse_vor_ort",
-    "adresse_nach_strasse", "adresse_nach_plz", "adresse_nach_ort",
+    "kontakt_id", "vorhandener_kontakt", "anrede", "vorname", "nachname",
+    "email", "telefon", "adresse_strasse", "adresse_plz", "adresse_ort",
 ]
 
 
 def _personen_aus_form(form) -> list[dict]:
     """Liest die Personen-Felder aus dem rohen Formular (mehrere Werte pro
     Feldname, ein Wert pro Person in DOM-Reihenfolge) und baut daraus eine
-    Liste von Personen-Dicts. Zeilen ohne Vor- und Nachname werden
-    uebersprungen (z.B. eine per JS hinzugefuegte, aber leer gelassene
-    Person-Zeile)."""
+    Liste von Personen-Dicts. Jede Zeile ist entweder ein bereits
+    verknuepfter Kontakt (kontakt_id gesetzt, aus dem Bearbeiten-Formular),
+    die Auswahl eines bestehenden Kontakts aus dem Adressbuch
+    (vorhandener_kontakt), oder legt einen neuen Kontakt an (Vor-/Nachname
+    ausgefuellt). Komplett leere Zeilen (z.B. eine per JS hinzugefuegte,
+    aber leer gelassene Zeile) werden uebersprungen.
+
+    Wichtig: die Zuordnung der Werte zu "welcher Person" passiert rein ueber
+    die Position (Index) innerhalb jeder gleichnamigen Feldliste - ein per
+    JS deaktiviertes ("disabled") Formularfeld wird vom Browser beim
+    Absenden komplett ausgelassen und wuerde dadurch alle Listen
+    unterschiedlich lang machen und Werte verschieben (siehe
+    mietverhaeltnis_form.html, wo deshalb bewusst "readonly" statt
+    "disabled" verwendet wird). "anzahl" wird trotzdem defensiv ueber die
+    LAENGSTE der Feldlisten bestimmt statt nur ueber "vorname", damit ein
+    einzelnes fehlendes Feld nicht dazu fuehrt, dass eine ganze
+    Personen-Zeile (z.B. eine ausgewaehlte, aber sonst leere
+    Adressbuch-Auswahl) stillschweigend verloren geht."""
     listen = {feld: form.getlist(f"person_{feld}") for feld in PERSON_FELDER}
-    anzahl = len(listen["vorname"])
+    anzahl = max((len(werte) for werte in listen.values()), default=0)
+
+    def wert(feld: str, i: int) -> str:
+        werte = listen[feld]
+        return werte[i] if i < len(werte) else ""
+
     personen = []
     for i in range(anzahl):
-        vorname = listen["vorname"][i].strip()
-        nachname = listen["nachname"][i].strip()
-        if not vorname and not nachname:
+        kontakt_id = wert("kontakt_id", i).strip()
+        vorhandener_kontakt = wert("vorhandener_kontakt", i).strip()
+        vorname = wert("vorname", i).strip()
+        nachname = wert("nachname", i).strip()
+        if not kontakt_id and not vorhandener_kontakt and not vorname and not nachname:
             continue
-        person = {
-            feld: (listen[feld][i] or "").strip() or None
+        eintrag = {
+            feld: wert(feld, i).strip() or None
             for feld in PERSON_FELDER
         }
-        # vorname/nachname sind NOT NULL in der DB - leeres Feld als "" statt None
-        person["vorname"] = person["vorname"] or ""
-        person["nachname"] = person["nachname"] or ""
-        personen.append(person)
+        eintrag["kontakt_id"] = int(kontakt_id) if kontakt_id else None
+        eintrag["vorhandener_kontakt"] = int(vorhandener_kontakt) if vorhandener_kontakt else None
+        personen.append(eintrag)
     return personen
+
+
+def _mietverhaeltnis_personen_speichern(db: Session, mv_id: int, form) -> None:
+    """Legt fuer jede Personen-Zeile des Formulars die passende Verknuepfung
+    an: reine Wiederverwendung eines bestehenden Kontakts (Auswahl aus dem
+    Adressbuch, keine Aenderung an dessen Daten), Aktualisierung eines schon
+    verknuepften Kontakts, oder Neuanlage. Eine ggf. mitgeschickte Adresse
+    wird nur als neue Adresshistorien-Zeile angelegt, wenn sie von der
+    aktuell hinterlegten Adresse abweicht (verhindert Duplikate bei jedem
+    erneuten Speichern des Formulars ohne inhaltliche Aenderung)."""
+    for p in _personen_aus_form(form):
+        if p["vorhandener_kontakt"] and not p["kontakt_id"]:
+            db.add(models.MietverhaeltnisKontakt(
+                mietverhaeltnis_id=mv_id, kontakt_id=p["vorhandener_kontakt"],
+            ))
+            continue
+
+        if p["kontakt_id"]:
+            kontakt = db.get(models.Kontakt, p["kontakt_id"])
+        else:
+            kontakt = models.Kontakt(ist_firma=False)
+            db.add(kontakt)
+
+        kontakt.anrede = p["anrede"]
+        kontakt.vorname = p["vorname"] or ""
+        kontakt.nachname = p["nachname"] or ""
+        kontakt.email = p["email"]
+        kontakt.telefon = p["telefon"]
+        db.flush()
+
+        if p["adresse_strasse"] or p["adresse_plz"] or p["adresse_ort"]:
+            aktuelle = kontakt.aktuelle_adresse
+            neue_adresse = (p["adresse_strasse"], p["adresse_plz"], p["adresse_ort"])
+            alte_adresse = (
+                (aktuelle.strasse, aktuelle.plz, aktuelle.ort) if aktuelle else None
+            )
+            if neue_adresse != alte_adresse:
+                db.add(models.KontaktAdresse(
+                    kontakt_id=kontakt.id,
+                    strasse=p["adresse_strasse"], plz=p["adresse_plz"], ort=p["adresse_ort"],
+                ))
+
+        db.add(models.MietverhaeltnisKontakt(mietverhaeltnis_id=mv_id, kontakt_id=kontakt.id))
 
 
 @app.get("/objekte/{objekt_id}/mietverhaeltnisse/neu")
@@ -463,9 +617,11 @@ def mietverhaeltnis_neu_form(request: Request, objekt_id: int, db: Session = Dep
                 models.Mietverhaeltnis.auszug.is_(None))
         .first()
     )
+    kontakte = db.query(models.Kontakt).order_by(models.Kontakt.nachname, models.Kontakt.firma_name).all()
     return templates.TemplateResponse(
         "mietverhaeltnis_form.html",
-        {"request": request, "objekt": objekt, "mv": None, "laufendes_mv": laufendes_mv},
+        {"request": request, "objekt": objekt, "mv": None, "laufendes_mv": laufendes_mv,
+         "kontakte": kontakte},
     )
 
 
@@ -478,6 +634,7 @@ async def mietverhaeltnis_neu(
     nk_abschlag_monatlich: str = Form(""),
     umsatzsteuerpflichtig: str = Form(""),
     mwst_satz: str = Form(""),
+    bezeichnung: str = Form(""),
     ist_firma: str = Form(""),
     firma_name: str = Form(""),
     nk_rechnungsadresse_abweichend: str = Form(""),
@@ -500,6 +657,7 @@ async def mietverhaeltnis_neu(
         ),
         umsatzsteuerpflichtig=bool(umsatzsteuerpflichtig),
         mwst_satz=float(mwst_satz.replace(",", ".")) if mwst_satz else 19.0,
+        bezeichnung=bezeichnung or None,
         ist_firma=bool(ist_firma),
         firma_name=firma_name or None,
         nk_rechnungsadresse_abweichend=bool(nk_rechnungsadresse_abweichend),
@@ -511,8 +669,7 @@ async def mietverhaeltnis_neu(
     )
     db.add(mv)
     db.flush()
-    for p in _personen_aus_form(form):
-        db.add(models.Person(mietverhaeltnis_id=mv.id, **p))
+    _mietverhaeltnis_personen_speichern(db, mv.id, form)
 
     # Laufendes Mietverhaeltnis ggf. beenden und Luecke als Leerstand erfassen
     if altes_mv_id and altes_mv_auszug:
@@ -538,9 +695,11 @@ async def mietverhaeltnis_neu(
 @app.get("/mietverhaeltnisse/{mv_id}/bearbeiten")
 def mietverhaeltnis_bearbeiten_form(request: Request, mv_id: int, db: Session = Depends(get_db)):
     mv = db.get(models.Mietverhaeltnis, mv_id)
+    kontakte = db.query(models.Kontakt).order_by(models.Kontakt.nachname, models.Kontakt.firma_name).all()
     return templates.TemplateResponse(
         "mietverhaeltnis_form.html",
-        {"request": request, "objekt": mv.objekt, "mv": mv, "laufendes_mv": None},
+        {"request": request, "objekt": mv.objekt, "mv": mv, "laufendes_mv": None,
+         "kontakte": kontakte, "fehler": request.query_params.get("fehler")},
     )
 
 
@@ -553,6 +712,7 @@ async def mietverhaeltnis_bearbeiten(
     nk_abschlag_monatlich: str = Form(""),
     umsatzsteuerpflichtig: str = Form(""),
     mwst_satz: str = Form(""),
+    bezeichnung: str = Form(""),
     ist_firma: str = Form(""),
     firma_name: str = Form(""),
     nk_rechnungsadresse_abweichend: str = Form(""),
@@ -572,6 +732,7 @@ async def mietverhaeltnis_bearbeiten(
     )
     mv.umsatzsteuerpflichtig = bool(umsatzsteuerpflichtig)
     mv.mwst_satz = float(mwst_satz.replace(",", ".")) if mwst_satz else 19.0
+    mv.bezeichnung = bezeichnung or None
     mv.ist_firma = bool(ist_firma)
     mv.firma_name = firma_name or None
     mv.nk_rechnungsadresse_abweichend = bool(nk_rechnungsadresse_abweichend)
@@ -580,11 +741,13 @@ async def mietverhaeltnis_bearbeiten(
     mv.nk_rechnungsadresse_plz = nk_rechnungsadresse_plz or None
     mv.nk_rechnungsadresse_ort = nk_rechnungsadresse_ort or None
     mv.notizen = notizen
-    for alte_person in list(mv.personen):
-        db.delete(alte_person)
+    # Nur die Verknuepfungen loesen (nicht die Kontakte selbst loeschen -
+    # die bleiben als wiederverwendbare Adressbuch-Eintraege erhalten, auch
+    # wenn sie hier gerade abgewaehlt/ersetzt werden).
+    for alter_link in list(mv.kontakt_links):
+        db.delete(alter_link)
     db.flush()
-    for p in _personen_aus_form(form):
-        db.add(models.Person(mietverhaeltnis_id=mv.id, **p))
+    _mietverhaeltnis_personen_speichern(db, mv.id, form)
     db.commit()
     return RedirectResponse(f"/objekte/{mv.objekt_id}", status_code=303)
 
@@ -592,10 +755,29 @@ async def mietverhaeltnis_bearbeiten(
 @app.post("/mietverhaeltnisse/{mv_id}/loeschen")
 def mietverhaeltnis_loeschen(mv_id: int, db: Session = Depends(get_db)):
     mv = db.get(models.Mietverhaeltnis, mv_id)
-    objekt_id = mv.objekt_id if mv else None
-    if mv:
-        db.delete(mv)
-        db.commit()
+    if not mv:
+        return RedirectResponse("/objekte", status_code=303)
+
+    # Zwingende Pruefung: sind fuer dieses Mietverhaeltnis bereits
+    # Vorauszahlungen (tatsaechlich erhaltene Zahlungen) erfasst, wird das
+    # Loeschen abgelehnt statt die Zahlungsdaten stillschweigend zu
+    # entfernen - der Nutzer muss die betreffenden Vorauszahlungen erst
+    # bewusst selbst loeschen (in der jeweiligen Jahresabrechnung), bevor
+    # das Mietverhaeltnis geloescht werden kann.
+    if mv.vorauszahlungen:
+        nachricht = (
+            f"Mietverhältnis kann nicht gelöscht werden: Es sind bereits "
+            f"{len(mv.vorauszahlungen)} Vorauszahlung(en) erfasst. Bitte zuerst die "
+            f"betreffenden Vorauszahlungen in der jeweiligen Jahresabrechnung löschen."
+        )
+        return RedirectResponse(
+            f"/mietverhaeltnisse/{mv_id}/bearbeiten?fehler={quote(nachricht)}",
+            status_code=303,
+        )
+
+    objekt_id = mv.objekt_id
+    db.delete(mv)
+    db.commit()
     return RedirectResponse(f"/objekte/{objekt_id}", status_code=303)
 
 
@@ -822,10 +1004,40 @@ def jahresabrechnung_neu_uebersicht(
     return RedirectResponse(f"/jahresabrechnungen/{neue_ja.id}", status_code=303)
 
 
+def _ja_gesperrt_redirect(ja, anchor: str = "") -> Optional[RedirectResponse]:
+    """Blockiert aendernde Aktionen auf einer gegen unabsichtliche Aenderungen
+    gesperrten Jahresabrechnung. Gibt bei Sperre eine RedirectResponse mit
+    Fehlermeldung zurueck, sonst None (Aufrufer soll dann normal fortfahren)."""
+    if ja is not None and ja.gesperrt:
+        nachricht = (
+            "Diese Jahresabrechnung ist gegen unabsichtliche Änderungen gesperrt. "
+            "Bitte zuerst oben entsperren."
+        )
+        ziel = f"/jahresabrechnungen/{ja.id}?fehler={quote(nachricht)}"
+        if anchor:
+            ziel += f"#{anchor}"
+        return RedirectResponse(ziel, status_code=303)
+    return None
+
+
+@app.post("/jahresabrechnungen/{ja_id}/sperren")
+def jahresabrechnung_sperren(ja_id: int, ziel: str = Form(""), db: Session = Depends(get_db)):
+    ja = db.get(models.Jahresabrechnung, ja_id)
+    if ja:
+        ja.gesperrt = not ja.gesperrt
+        db.commit()
+        if ziel == "objekt":
+            return RedirectResponse(f"/objekte/{ja.objekt_id}#jahresabrechnungen", status_code=303)
+    return RedirectResponse(f"/jahresabrechnungen/{ja_id}", status_code=303)
+
+
 @app.post("/jahresabrechnungen/{ja_id}/loeschen")
 def jahresabrechnung_loeschen(ja_id: int, db: Session = Depends(get_db)):
     ja = db.get(models.Jahresabrechnung, ja_id)
     objekt_id = ja.objekt_id if ja else None
+    gesperrt_redirect = _ja_gesperrt_redirect(ja)
+    if gesperrt_redirect:
+        return gesperrt_redirect
     if ja:
         db.delete(ja)
         db.commit()
@@ -847,6 +1059,7 @@ def jahresabrechnung_detail(request: Request, ja_id: int, db: Session = Depends(
             "gradtagszahlen": calc.GRADTAGSZAHL_MONAT, "pruefung": pruefung,
             "wasser_warnungen": wasser_warnungen,
             "personentage_warnungen": personentage_warnungen,
+            "fehler": request.query_params.get("fehler"),
         },
     )
 
@@ -856,6 +1069,9 @@ def jahresabrechnung_hv_gesamtbetrag(
     ja_id: int, hv_gesamtbetrag: str = Form(""), db: Session = Depends(get_db),
 ):
     ja = db.get(models.Jahresabrechnung, ja_id)
+    gesperrt_redirect = _ja_gesperrt_redirect(ja, "pruefung")
+    if gesperrt_redirect:
+        return gesperrt_redirect
     if ja:
         wert = hv_gesamtbetrag.strip().replace(",", ".")
         ja.hv_gesamtbetrag = float(wert) if wert else None
@@ -873,6 +1089,10 @@ def position_neu(
     bemerkung: str = Form(""),
     db: Session = Depends(get_db),
 ):
+    ja = db.get(models.Jahresabrechnung, ja_id)
+    gesperrt_redirect = _ja_gesperrt_redirect(ja, "abrechnungspositionen")
+    if gesperrt_redirect:
+        return gesperrt_redirect
     kostenart = db.get(models.Kostenart, kostenart_id)
     db.add(models.Abrechnungsposition(
         jahresabrechnung_id=ja_id, kostenart_id=kostenart_id,
@@ -896,6 +1116,10 @@ def position_bearbeiten(
     bemerkung: str = Form(""),
     db: Session = Depends(get_db),
 ):
+    ja = db.get(models.Jahresabrechnung, ja_id)
+    gesperrt_redirect = _ja_gesperrt_redirect(ja, "abrechnungspositionen")
+    if gesperrt_redirect:
+        return gesperrt_redirect
     pos = db.get(models.Abrechnungsposition, pos_id)
     if pos:
         kostenart = db.get(models.Kostenart, kostenart_id)
@@ -910,6 +1134,10 @@ def position_bearbeiten(
 
 @app.post("/jahresabrechnungen/{ja_id}/positionen/{pos_id}/loeschen")
 def position_loeschen(ja_id: int, pos_id: int, db: Session = Depends(get_db)):
+    ja = db.get(models.Jahresabrechnung, ja_id)
+    gesperrt_redirect = _ja_gesperrt_redirect(ja, "abrechnungspositionen")
+    if gesperrt_redirect:
+        return gesperrt_redirect
     pos = db.get(models.Abrechnungsposition, pos_id)
     if pos:
         db.delete(pos)
@@ -920,6 +1148,9 @@ def position_loeschen(ja_id: int, pos_id: int, db: Session = Depends(get_db)):
 @app.post("/jahresabrechnungen/{ja_id}/berechnen")
 def jahresabrechnung_berechnen(ja_id: int, db: Session = Depends(get_db)):
     ja = db.get(models.Jahresabrechnung, ja_id)
+    gesperrt_redirect = _ja_gesperrt_redirect(ja, "berechnung")
+    if gesperrt_redirect:
+        return gesperrt_redirect
     calc.berechne_jahresabrechnung(db, ja)
     return RedirectResponse(f"/jahresabrechnungen/{ja_id}#berechnung", status_code=303)
 
@@ -927,6 +1158,9 @@ def jahresabrechnung_berechnen(ja_id: int, db: Session = Depends(get_db)):
 @app.post("/jahresabrechnungen/{ja_id}/leeren")
 def jahresabrechnung_leeren(ja_id: int, db: Session = Depends(get_db)):
     ja = db.get(models.Jahresabrechnung, ja_id)
+    gesperrt_redirect = _ja_gesperrt_redirect(ja, "berechnung")
+    if gesperrt_redirect:
+        return gesperrt_redirect
     if ja:
         for alt in list(ja.mieterabrechnungen):
             db.delete(alt)
@@ -945,6 +1179,10 @@ def vorauszahlung_neu(
     bemerkung: str = Form(""),
     db: Session = Depends(get_db),
 ):
+    ja = db.get(models.Jahresabrechnung, ja_id)
+    gesperrt_redirect = _ja_gesperrt_redirect(ja, "vorauszahlungen")
+    if gesperrt_redirect:
+        return gesperrt_redirect
     db.add(models.Vorauszahlung(
         jahresabrechnung_id=ja_id, mietverhaeltnis_id=mietverhaeltnis_id,
         anzahl_monate=int(anzahl_monate),
@@ -965,6 +1203,10 @@ def vorauszahlung_bearbeiten(
     bemerkung: str = Form(""),
     db: Session = Depends(get_db),
 ):
+    ja = db.get(models.Jahresabrechnung, ja_id)
+    gesperrt_redirect = _ja_gesperrt_redirect(ja, "vorauszahlungen")
+    if gesperrt_redirect:
+        return gesperrt_redirect
     vz = db.get(models.Vorauszahlung, vz_id)
     if vz:
         vz.mietverhaeltnis_id = mietverhaeltnis_id
@@ -977,6 +1219,10 @@ def vorauszahlung_bearbeiten(
 
 @app.post("/jahresabrechnungen/{ja_id}/vorauszahlungen/{vz_id}/loeschen")
 def vorauszahlung_loeschen(ja_id: int, vz_id: int, db: Session = Depends(get_db)):
+    ja = db.get(models.Jahresabrechnung, ja_id)
+    gesperrt_redirect = _ja_gesperrt_redirect(ja, "vorauszahlungen")
+    if gesperrt_redirect:
+        return gesperrt_redirect
     vz = db.get(models.Vorauszahlung, vz_id)
     if vz:
         db.delete(vz)
@@ -986,10 +1232,11 @@ def vorauszahlung_loeschen(ja_id: int, vz_id: int, db: Session = Depends(get_db)
 
 # ------------------------------------------------------------------ Export
 GENERIC_EXPORTS = {
-    "verwaltung": models.Verwaltung,
+    "kontakt": models.Kontakt,
+    "kontakt_adresse": models.KontaktAdresse,
     "objekt": models.Objekt,
     "mietverhaeltnis": models.Mietverhaeltnis,
-    "person": models.Person,
+    "mietverhaeltnis_kontakt": models.MietverhaeltnisKontakt,
     "kostenart": models.Kostenart,
     "jahresabrechnung": models.Jahresabrechnung,
     "abrechnungsposition": models.Abrechnungsposition,
@@ -1003,10 +1250,11 @@ GENERIC_EXPORTS = {
 }
 
 EXPORT_LABELS = {
-    "verwaltung": "Verwaltungen",
+    "kontakt": "Kontakte (Adressbuch)",
+    "kontakt_adresse": "Kontakt-Adressen",
     "objekt": "Objekte",
     "mietverhaeltnis": "Mietverhältnisse",
-    "person": "Personen",
+    "mietverhaeltnis_kontakt": "Mietverhältnis-Kontakt-Verknüpfungen",
     "kostenart": "Kostenarten",
     "jahresabrechnung": "Jahresabrechnungen",
     "abrechnungsposition": "Abrechnungspositionen",

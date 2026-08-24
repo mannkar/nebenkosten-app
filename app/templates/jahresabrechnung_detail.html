@@ -5,13 +5,29 @@
 <h1>Jahresabrechnung {{ ja.jahr }} – {{ ja.objekt.bezeichnung }}</h1>
 <p class="muted">Zeitraum {{ ja.zeitraum_von }} – {{ ja.zeitraum_bis }} ({{ beleg.gesamttage }} Tage)</p>
 
+{% if fehler %}
+<div style="background:#fbeae9; border-left:4px solid var(--danger); padding:0.8rem 1rem; margin-bottom:1.2rem; border-radius:4px;">
+  <p style="margin:0;"><strong>Achtung:</strong> {{ fehler }}</p>
+</div>
+{% endif %}
+
+<p>
+  <form class="inline" method="post" action="/jahresabrechnungen/{{ ja.id }}/sperren">
+    {% if ja.gesperrt %}
+    <button type="submit" class="btn" title="Klicken zum Entsperren">🔒 Gesperrt – gegen unabsichtliche Änderungen geschützt</button>
+    {% else %}
+    <button type="submit" class="btn" title="Klicken zum Sperren">🔓 Offen – klicken, um gegen Änderungen zu schützen</button>
+    {% endif %}
+  </form>
+</p>
+
 <p>
   <label style="font-weight:600; font-size:0.85rem;">Gesamtbetrag laut Hausverwalter-Abrechnung</label><br>
   <form class="inline" method="post" action="/jahresabrechnungen/{{ ja.id }}/hv_gesamtbetrag">
     <input name="hv_gesamtbetrag" style="width:160px;"
            value="{{ ja.hv_gesamtbetrag|de if ja.hv_gesamtbetrag is not none else '' }}"
-           placeholder="z.B. 4200,00">
-    <button type="submit" class="btn">Speichern</button>
+           placeholder="z.B. 4200,00" {% if ja.gesperrt %}disabled{% endif %}>
+    <button type="submit" class="btn" {% if ja.gesperrt %}disabled{% endif %}>Speichern</button>
   </form>
 </p>
 
@@ -44,21 +60,21 @@ danach 7 Monate zu 385 €.</p>
   {% for vz in ja.vorauszahlungen %}
   <tr>
     <td>
-      <select name="mietverhaeltnis_id" form="vz-edit-{{ vz.id }}" required>
+      <select name="mietverhaeltnis_id" form="vz-edit-{{ vz.id }}" required {% if ja.gesperrt %}disabled{% endif %}>
         {% for mv, tage in beleg.relevante_mv %}
         <option value="{{ mv.id }}" {% if mv.id == vz.mietverhaeltnis_id %}selected{% endif %}>{{ mv.anzeige_name }}</option>
         {% endfor %}
       </select>
     </td>
-    <td><input name="anzahl_monate" form="vz-edit-{{ vz.id }}" type="number" min="1" value="{{ vz.anzahl_monate }}" required></td>
-    <td><input name="betrag_pro_monat" form="vz-edit-{{ vz.id }}" value="{{ vz.betrag_pro_monat|de }}" required></td>
+    <td><input name="anzahl_monate" form="vz-edit-{{ vz.id }}" type="number" min="1" value="{{ vz.anzahl_monate }}" required {% if ja.gesperrt %}disabled{% endif %}></td>
+    <td><input name="betrag_pro_monat" form="vz-edit-{{ vz.id }}" value="{{ vz.betrag_pro_monat|de }}" required {% if ja.gesperrt %}disabled{% endif %}></td>
     <td>{{ vz.summe|de }}&nbsp;€</td>
-    <td><input name="bemerkung" form="vz-edit-{{ vz.id }}" value="{{ vz.bemerkung or '' }}"></td>
+    <td><input name="bemerkung" form="vz-edit-{{ vz.id }}" value="{{ vz.bemerkung or '' }}" {% if ja.gesperrt %}disabled{% endif %}></td>
     <td>
       <div class="row-actions">
-        <button type="submit" form="vz-edit-{{ vz.id }}" class="btn">Speichern</button>
+        <button type="submit" form="vz-edit-{{ vz.id }}" class="btn" {% if ja.gesperrt %}disabled{% endif %}>Speichern</button>
         <form class="inline" method="post" action="/jahresabrechnungen/{{ ja.id }}/vorauszahlungen/{{ vz.id }}/loeschen">
-          <button type="submit" class="danger">Löschen</button>
+          <button type="submit" class="danger" {% if ja.gesperrt %}disabled{% endif %}>Löschen</button>
         </form>
       </div>
     </td>
@@ -68,17 +84,17 @@ danach 7 Monate zu 385 €.</p>
   {% endfor %}
   <tr>
     <td>
-      <select name="mietverhaeltnis_id" form="vz-form" required>
+      <select name="mietverhaeltnis_id" form="vz-form" required {% if ja.gesperrt %}disabled{% endif %}>
         {% for mv, tage in beleg.relevante_mv %}
         <option value="{{ mv.id }}">{{ mv.anzeige_name }}</option>
         {% endfor %}
       </select>
     </td>
-    <td><input name="anzahl_monate" form="vz-form" type="number" min="1" required></td>
-    <td><input name="betrag_pro_monat" form="vz-form" required placeholder="370,00"></td>
+    <td><input name="anzahl_monate" form="vz-form" type="number" min="1" required {% if ja.gesperrt %}disabled{% endif %}></td>
+    <td><input name="betrag_pro_monat" form="vz-form" required placeholder="370,00" {% if ja.gesperrt %}disabled{% endif %}></td>
     <td></td>
-    <td><input name="bemerkung" form="vz-form" placeholder="z.B. Jan-Mai"></td>
-    <td><button type="submit" form="vz-form" class="btn">+ Hinzufügen</button></td>
+    <td><input name="bemerkung" form="vz-form" placeholder="z.B. Jan-Mai" {% if ja.gesperrt %}disabled{% endif %}></td>
+    <td><button type="submit" form="vz-form" class="btn" {% if ja.gesperrt %}disabled{% endif %}>+ Hinzufügen</button></td>
   </tr>
 </table>
 {% for vz in ja.vorauszahlungen %}
@@ -95,32 +111,32 @@ dann nicht in die Prüfung gegen den HV-Gesamtbetrag ein.</p>
   {% for p in ja.positionen %}
   <tr>
     <td>
-      <select name="kostenart_id" form="pos-edit-{{ p.id }}" required>
+      <select name="kostenart_id" form="pos-edit-{{ p.id }}" required {% if ja.gesperrt %}disabled{% endif %}>
         {% for k in kostenarten %}
         <option value="{{ k.id }}" {% if k.id == p.kostenart_id %}selected{% endif %}>{{ k.bezeichnung }} ({{ "umlagefähig" if k.umlagefaehig else "nicht umlagefähig" }})</option>
         {% endfor %}
       </select>
     </td>
-    <td><input name="betrag" form="pos-edit-{{ p.id }}" value="{{ p.betrag|de }}" required></td>
+    <td><input name="betrag" form="pos-edit-{{ p.id }}" value="{{ p.betrag|de }}" required {% if ja.gesperrt %}disabled{% endif %}></td>
     <td>
-      <select name="umlagefaehig" form="pos-edit-{{ p.id }}">
+      <select name="umlagefaehig" form="pos-edit-{{ p.id }}" {% if ja.gesperrt %}disabled{% endif %}>
         <option value="" {% if not p.umlagefaehig %}selected{% endif %}>{{ "ja (std)" if p.kostenart.umlagefaehig else "nein (std)" }}</option>
         <option value="1" {% if p.umlagefaehig %}selected{% endif %}>ja</option>
       </select>
     </td>
     <td>
-      <select name="hv_abgerechnet" form="pos-edit-{{ p.id }}">
+      <select name="hv_abgerechnet" form="pos-edit-{{ p.id }}" {% if ja.gesperrt %}disabled{% endif %}>
         <option value="" {% if p.hv_abgerechnet is none %}selected{% endif %}>{{ "ja (std)" if p.kostenart.hv_abgerechnet else "nein (std)" }}</option>
         <option value="1" {% if p.hv_abgerechnet == true %}selected{% endif %}>ja</option>
         <option value="0" {% if p.hv_abgerechnet == false %}selected{% endif %}>nein</option>
       </select>
     </td>
-    <td><input name="bemerkung" form="pos-edit-{{ p.id }}" value="{{ p.bemerkung or '' }}"></td>
+    <td><input name="bemerkung" form="pos-edit-{{ p.id }}" value="{{ p.bemerkung or '' }}" {% if ja.gesperrt %}disabled{% endif %}></td>
     <td>
       <div class="row-actions">
-        <button type="submit" form="pos-edit-{{ p.id }}" class="btn">Speichern</button>
+        <button type="submit" form="pos-edit-{{ p.id }}" class="btn" {% if ja.gesperrt %}disabled{% endif %}>Speichern</button>
         <form class="inline" method="post" action="/jahresabrechnungen/{{ ja.id }}/positionen/{{ p.id }}/loeschen">
-          <button type="submit" class="danger">Löschen</button>
+          <button type="submit" class="danger" {% if ja.gesperrt %}disabled{% endif %}>Löschen</button>
         </form>
       </div>
     </td>
@@ -137,28 +153,28 @@ dann nicht in die Prüfung gegen den HV-Gesamtbetrag ein.</p>
   </tr>
   <tr>
     <td>
-      <select name="kostenart_id" form="pos-form" required>
+      <select name="kostenart_id" form="pos-form" required {% if ja.gesperrt %}disabled{% endif %}>
         {% for k in kostenarten %}
         <option value="{{ k.id }}">{{ k.bezeichnung }} ({{ "umlagefähig" if k.umlagefaehig else "nicht umlagefähig" }})</option>
         {% endfor %}
       </select>
     </td>
-    <td><input name="betrag" form="pos-form" required placeholder="342,10"></td>
+    <td><input name="betrag" form="pos-form" required placeholder="342,10" {% if ja.gesperrt %}disabled{% endif %}></td>
     <td>
-      <select name="umlagefaehig" form="pos-form">
+      <select name="umlagefaehig" form="pos-form" {% if ja.gesperrt %}disabled{% endif %}>
         <option value="">Standard</option>
         <option value="1">ja</option>
       </select>
     </td>
     <td>
-      <select name="hv_abgerechnet" form="pos-form">
+      <select name="hv_abgerechnet" form="pos-form" {% if ja.gesperrt %}disabled{% endif %}>
         <option value="">Standard</option>
         <option value="1">ja</option>
         <option value="0">nein</option>
       </select>
     </td>
-    <td><input name="bemerkung" form="pos-form"></td>
-    <td><button type="submit" form="pos-form" class="btn">+ Hinzufügen</button></td>
+    <td><input name="bemerkung" form="pos-form" {% if ja.gesperrt %}disabled{% endif %}></td>
+    <td><button type="submit" form="pos-form" class="btn" {% if ja.gesperrt %}disabled{% endif %}>+ Hinzufügen</button></td>
   </tr>
 </table>
 {% for p in ja.positionen %}
@@ -216,11 +232,11 @@ August werden als ein Block mit zusammen 40 Promille geführt.</p>
 </p>
 <div class="row-actions">
   <form method="post" action="/jahresabrechnungen/{{ ja.id }}/berechnen">
-    <button type="submit" class="btn">Verteilung (neu) berechnen</button>
+    <button type="submit" class="btn" {% if ja.gesperrt %}disabled{% endif %}>Verteilung (neu) berechnen</button>
   </form>
   <form method="post" action="/jahresabrechnungen/{{ ja.id }}/leeren"
         onsubmit="return confirm('Berechnetes Ergebnis wirklich leeren? Die Abrechnungspositionen und Vorauszahlungen bleiben erhalten.');">
-    <button type="submit" class="danger">Ergebnis leeren</button>
+    <button type="submit" class="danger" {% if ja.gesperrt %}disabled{% endif %}>Ergebnis leeren</button>
   </form>
 </div>
 
@@ -326,6 +342,6 @@ August werden als ein Block mit zusammen 40 Promille geführt.</p>
 
 <form method="post" action="/jahresabrechnungen/{{ ja.id }}/loeschen"
       onsubmit="return confirm('Jahresabrechnung wirklich löschen?');">
-  <button type="submit" class="danger">Jahresabrechnung löschen</button>
+  <button type="submit" class="danger" {% if ja.gesperrt %}disabled{% endif %}>Jahresabrechnung löschen</button>
 </form>
 {% endblock %}
